@@ -1,23 +1,25 @@
 # AccessAble AI dependency pins.
-# Versions verified on this machine's Python during Phases 1-2.
+# Versions verified on this machine (Python 3.14, Linux) in Phase 1.
 # System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
 
 # UI
-streamlit
+streamlit==1.67.0
 
-# Computer vision / detection
-opencv-python
-ultralytics
-pillow
+# Image utilities (Phase 1); CV/detection/OCR arrive in later phases
+pillow==13.0.0
 
-# OCR (lazy-loaded at runtime)
-easyocr
+# Computer vision / detection (Phase 2)
+# opencv-python
+# ultralytics
 
-# Offline speech
-pyttsx3
+# OCR, lazy-loaded at runtime (Phase 4)
+# easyocr
 
-# Graph visualization/validation only (algorithms are hand-written)
-networkx
+# Offline speech (Phase 3)
+# pyttsx3
+
+# Graph visualization/validation only (algorithms are hand-written) (Phase 6)
+# networkx
 
 # Testing
-pytest
+pytest==9.2.0
