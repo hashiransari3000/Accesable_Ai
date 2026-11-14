@@ -1,0 +1,82 @@
+ACCESSABLE AI - SETUP GUIDE (Fedora / Linux)
+============================================
+
+1. PREREQUISITES
+----------------
+  - Python 3.10+ (this machine has 3.14)
+  - Git
+  - System package for offline speech:
+      sudo dnf install espeak-ng
+    Check with:  espeak-ng --version
+    (Already verified present on this machine: /usr/bin/espeak-ng)
+
+2. GET THE CODE
+---------------
+  Clone the repository (once a GitHub remote is configured) or use the
+  local project folder directly.
+
+3. CREATE A VIRTUAL ENVIRONMENT
+-------------------------------
+      cd AccessAble-AI        # or the project folder
+      python3 -m venv .venv
+      source .venv/bin/activate
+
+4. INSTALL PYTHON PACKAGES
+-------------------------
+      pip install -r requirements.txt
+
+  Pip packages used (pinned in requirements.txt):
+    streamlit      UI framework
+    ultralytics    YOLO object detection (nano model, CPU inference)
+    opencv-python  image handling and preprocessing
+    pyttsx3        offline text-to-speech wrapper
+    easyocr        local OCR (loaded on demand)
+    pillow         image utilities
+    networkx       graph visualization/validation only
+    pytest         test runner
+
+  System vs pip: only espeak-ng is a system package; everything else
+  installs via pip.
+
+5. MODEL DOWNLOAD BEHAVIOUR
+---------------------------
+  - The YOLO nano weights download automatically over the network ONCE,
+    on first inference, into the local cache (see models/README.txt).
+  - After that first download, detection works fully offline.
+  - EasyOCR downloads its recognition model on first OCR use, likewise
+    cached locally.
+  - No paid services, accounts, or API keys are involved.
+
+6. RUN THE APP
+--------------
+      streamlit run app.py
+
+  Then open the shown local URL (default http://localhost:8501) in a
+  browser.
+
+7. RUN THE TESTS
+----------------
+      pytest -q
+
+8. TROUBLESHOOTING
+------------------
+  T1  "pyttsx3 driver not found" / no speech
+      -> Ensure espeak-ng is installed: sudo dnf install espeak-ng
+      -> Speech degrades to text-only output; the app stays usable.
+  T2  First detection is slow
+      -> Model is downloading on first use; later runs are fast.
+  T3  Camera not detected / permission denied
+      -> Image upload still works; check OS camera permissions.
+  T4  Memory pressure
+      -> OCR loads only when requested; close other heavy apps.
+  T5  Package install fails on Python 3.14
+      -> Documented fallback: use Python 3.11/3.12 venv
+         (python3.12 -m venv .venv) - verify in Phase 2.
+  T6  Port 8501 busy
+      -> streamlit run app.py --server.port 8502
+
+9. PRIVACY NOTE
+---------------
+  All processing is local. Images and text never leave your machine.
+  The only network use is the one-time model download, clearly flagged
+  in the UI when it happens.

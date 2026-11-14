@@ -1,0 +1,134 @@
+ACCESSABLE AI - ARCHITECTURE
+============================
+
+1. DESIGN PRINCIPLES
+--------------------
+  - Modular: business logic lives in service modules under modules/;
+    the UI layer stays thin and delegates to services.
+  - Lazy loading: heavy models (YOLO, EasyOCR) load only when first
+    needed and are cached in memory for reuse.
+  - CPU-first: default inference settings target a laptop without a GPU.
+  - Local-only: no network calls at request time (model download happens
+    once, on first use, and is documented).
+  - Testable: pure functions (position analysis, graph algorithms,
+    announcement logic) are separated from I/O and UI.
+
+2. MODULE RESPONSIBILITIES
+--------------------------
+  app.py
+      Streamlit entry point. Owns page routing, session state, and calls
+      into modules/ and ui/. Contains no detection/OCR/graph logic.
+
+  modules/object_detection.py
+      Wraps Ultralytics YOLO. Loads a nano pretrained model lazily,
+      caches it, runs inference on a preprocessed image, and returns
+      structured detections: [{label, confidence, bbox(x1,y1,x2,y2)}].
+      Knows nothing about the UI.
+
+  modules/position_analysis.py
+      Pure functions. Maps a bounding box to coarse screen-relative
+      position: horizontal (left / center / right) and vertical
+      (upper / middle / lower). Returns cautious phrasing strings.
+
+  modules/announcement_manager.py
+      Prioritizes detections (by confidence + class usefulness),
+      deduplicates repeated announcements, and applies a cooldown so the
+      same unchanged object is not repeated. Produces the final spoken
+      summary text and per-object phrases.
+
+  modules/voice_assistant.py
+      Wraps pyttsx3 (+ eSpeak NG on Linux). speak / stop / replay /
+      rate control. Degrades gracefully: if the TTS engine is missing it
+      reports an actionable setup hint instead of crashing.
+
+  modules/text_recognition.py
+      Wraps EasyOCR. Loaded on demand only when the user requests text
+      reading. Returns extracted text plus confidence where available,
+      and normalizes empty / failed OCR into explicit states.
+
+  modules/camera.py
+      Camera capture helper for the live mode. Deliberate activation
+      only, frame throttling, and guaranteed resource release on stop.
+
+  modules/navigation/graph_data.py
+      The fictional sample building as a graph: named nodes and edges,
+      stored in a readable data file under assets/sample_maps/.
+
+  modules/navigation/bfs.py, astar.py
+      Hand-written, readable implementations of BFS (unweighted,
+      shortest-hop) and A* (weighted, documented admissible heuristic
+      or zero heuristic). NetworkX is used only for visualization
+      validation, never to compute the taught algorithms.
+
+  modules/navigation/route_service.py
+      Runs BFS and A* on the sample graph, returns route, explored
+      nodes, path cost/length, and timing for the comparison view.
+
+  ui/components.py, ui/styles.py
+      Shared UI components (status banners, buttons, result cards) and
+      the design tokens (colours, spacing, typography) in one place.
+
+3. DATA FLOW (SCENE ASSISTANT)
+------------------------------
+  Uploaded image -> validation -> OpenCV preprocessing (resize,
+  preserve aspect ratio) -> YOLO inference -> structured detections
+  -> position analysis -> announcement manager (prioritize + dedupe)
+  -> UI result list / annotated preview -> user-triggered TTS.
+
+4. DATA FLOW (READ TEXT)
+------------------------
+  Uploaded image -> validation -> EasyOCR (loaded on demand) ->
+  extracted text + confidence -> result panel -> user-triggered TTS.
+
+5. DATA FLOW (NAVIGATION DEMO)
+------------------------------
+  Sample map file -> graph -> BFS and A* -> route, explored set, cost,
+  timing -> route visualization + comparison table + disclaimer.
+
+6. PLAIN-TEXT ARCHITECTURE DIAGRAM
+----------------------------------
+
+    +---------------------------------------------+
+    |                 app.py (UI)                 |
+    |  Dashboard | Scene | Read Text | Navigation | Settings
+    +----+-----------+-----------+----------+-----+
+         |           |           |          |
+         v           v           v          v
+   +---------+  +----------+  +-------+  +----------+
+   | camera  |  | object   |  | text  |  | route    |
+   | module  |  | detection|  | recog |  | service  |
+   +---------+  +----+-----+  +---+---+  +----+-----+
+                     |            |           |
+                     v            v           v
+               +---------+   +---------+  +----------+
+               | YOLO    |   | EasyOCR |  | bfs.py / |
+               | (cached)|   | (lazy)  |  | astar.py |
+               +---------+   +---------+  +----+-----+
+                     |            |           |
+                     v            v           v
+               +-------------+  +-----+  +------------+
+               | position    |  | TTS |  | graph_data |
+               | analysis +  |  |     |  | + map file |
+               | announcer   |  +-----+  +------------+
+               +-------------+
+
+7. DEPENDENCIES
+---------------
+  Python packages (pinned in requirements.txt):
+    streamlit, ultralytics (YOLO), opencv-python, pyttsx3, easyocr,
+    pillow, networkx, pytest
+
+  System packages (documented in docs/SETUP_GUIDE.txt):
+    espeak-ng (offline speech backend on Linux)
+
+  Model files:
+    YOLO nano weights are downloaded automatically on first inference
+    and cached locally (see models/README.txt). They are NOT committed
+    to the repository.
+
+8. ERROR HANDLING POLICY
+------------------------
+  Exceptions are caught at module boundaries and converted into
+  actionable, user-facing states (error message + suggested fix).
+  No broad silent exception handling. Missing optional components
+  (camera, TTS, OCR model) degrade the app rather than crash it.

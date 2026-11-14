@@ -1,0 +1,84 @@
+ACCESSABLE AI - SAFETY AND LIMITATIONS
+======================================
+
+MANDATORY VISIBLE NOTICE (Dashboard + Navigation pages)
+-------------------------------------------------------
+"Educational prototype only. AI may miss or misidentify objects.
+Do not rely on this app for safe mobility or obstacle avoidance."
+
+1. WHAT THIS SYSTEM IS NOT
+--------------------------
+  - Not a certified assistive technology product.
+  - Not a replacement for a white cane, guide dog, mobility training,
+    or human assistance.
+  - Not a medical or safety device.
+  - Not capable of guaranteeing that any area is safe or free of obstacles.
+
+2. OBJECT DETECTION LIMITATIONS
+-------------------------------
+  - The pretrained YOLO model recognizes only the classes in its training
+    labels; it cannot detect everything.
+  - It can miss objects, misclassify objects, lag behind reality, or
+    produce false detections.
+  - Confidence is a model score, NOT a probability of safety.
+  - Announcements describe the analyzed frame/image only. They are
+    observations, not facts about the entire environment.
+  - A 2D image does not provide reliable physical distance, obstacle
+    height, floor drop-off, or collision risk. Distance estimation is
+    intentionally out of scope.
+
+3. POSITION ESTIMATION LIMITATIONS
+----------------------------------
+  - "Left / center / right" refers to position within the analyzed
+    image, phrased as "appears on the left side of the image". It is NOT
+    a statement about the user's physical surroundings.
+
+4. SPEECH LIMITATIONS
+---------------------
+  - Offline TTS voice quality depends on eSpeak NG; pronunciation of
+    some words may be imperfect.
+  - If TTS is unavailable, text output remains fully available.
+  - Speech is user-triggered or explicitly enabled; the app never speaks
+    unexpectedly on load.
+
+5. OCR LIMITATIONS
+------------------
+  - English only (until other languages are explicitly tested).
+  - Handwriting, very low resolution, heavy blur, extreme rotation, and
+    poor lighting can cause missing or wrong text.
+  - OCR output can contain errors; users should verify important text.
+  - "No text found" is a valid result, not an error.
+
+6. NAVIGATION DEMO LIMITATIONS
+------------------------------
+  - The indoor map is a fixed, fictional sample. The system does not know
+    the user's live location.
+  - It does not detect stairs, doors, temporary obstacles, moving people,
+    or accessible paths in a real building.
+  - BFS/A* outputs are algorithm demonstrations on the supplied graph,
+    never live guidance. Never described as safe real-world navigation.
+
+7. PRIVACY BEHAVIOUR
+--------------------
+  - All image processing happens locally on the user's machine.
+  - No camera images, OCR text, or user data is uploaded, retained, or
+    transmitted. No analytics or telemetry.
+  - Model weights download once on first use (documented in
+    docs/SETUP_GUIDE.txt and models/README.txt); after that the app
+    works offline.
+
+8. KNOWN FAILURE MODES
+----------------------
+  F1. Missing camera or denied permission -> camera mode disabled with
+      fallback instructions; image upload remains available.
+  F2. Model download/load failure -> clear error with retry guidance;
+      rest of app stays usable.
+  F3. TTS engine missing -> text summaries shown plus setup hint.
+  F4. Unsupported/corrupted image -> validation error before processing.
+  F5. Low memory -> OCR stays lazy-loaded; camera inference throttled.
+
+9. SAFE WORDING RULES (for the product and all documentation)
+------------------------------------------------------------
+  - Never say "safe", "collision prevention", or "guaranteed navigation".
+  - Use "appears", "detected in this image", "based on the sample map".
+  - Always keep the visual equivalent of spoken information available.

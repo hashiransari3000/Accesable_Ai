@@ -1,0 +1,23 @@
+# AccessAble AI dependency pins.
+# Versions verified on this machine's Python during Phases 1-2.
+# System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
+
+# UI
+streamlit
+
+# Computer vision / detection
+opencv-python
+ultralytics
+pillow
+
+# OCR (lazy-loaded at runtime)
+easyocr
+
+# Offline speech
+pyttsx3
+
+# Graph visualization/validation only (algorithms are hand-written)
+networkx
+
+# Testing
+pytest

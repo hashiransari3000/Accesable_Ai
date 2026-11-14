@@ -1,0 +1,32 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Environment / secrets (never commit real values)
+.env
+
+# Downloaded model weights are cached locally, never committed
+models/*.pt
+models/*.pth
+models/*.engine
+models/*.onnx
+
+# EasyOCR local cache if pointed inside repo
+easyocr_cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local media the user may drop in for testing (keep sample assets only)
+uploads/
