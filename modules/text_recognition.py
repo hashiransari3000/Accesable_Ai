@@ -99,7 +99,7 @@ def extract_text(
     result = TextRecognitionResult(languages=list(languages or DEFAULT_LANGUAGES))
 
     try:
-        pil = _decode_image(image_bytes)
+        _decode_image(image_bytes)
     except ValueError as exc:
         result.error = str(exc)
         return result

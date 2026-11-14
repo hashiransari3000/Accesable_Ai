@@ -14,7 +14,6 @@ from modules import object_detection as od
 from modules.object_detection import (
     DEFAULT_MODEL_PATH,
     Detection,
-    DetectionResult,
     analyze_image,
     clamp_bbox,
     filter_by_confidence,

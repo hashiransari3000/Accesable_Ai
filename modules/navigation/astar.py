@@ -23,7 +23,7 @@ Result contract matches bfs.SearchResult; unknown nodes raise ValueError
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from modules.navigation.bfs import SearchResult, _path_cost
 from modules.navigation.graph_data import IndoorGraph
@@ -35,7 +35,7 @@ class _FrontierEntry:
     counter: int          # tie-breaker so node ids never get compared
     node: str
 
-    def __lt__(self, other: "_FrontierEntry") -> bool:
+    def __lt__(self, other: _FrontierEntry) -> bool:
         return (self.f, self.counter) < (other.f, other.counter)
 
 
@@ -49,7 +49,7 @@ def astar_shortest_path(
         raise ValueError(f"Unknown node: {start if start not in graph.nodes else goal}")
 
     if heuristic is None:
-        heuristic = lambda _node: 0.0  # noqa: E731  (zero heuristic = Dijkstra)
+        heuristic = lambda _node: 0.0
 
     counter = 0  # insertion order; prevents heapq comparing dict values
     frontier: list[_FrontierEntry] = [_FrontierEntry(heuristic(start), counter, start)]

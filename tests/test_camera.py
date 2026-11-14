@@ -7,6 +7,7 @@ verify lifecycle, throttling, error paths, and resource cleanup (M16-M18).
 import sys
 import time
 import types
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -22,7 +23,7 @@ class FakeCapture:
     fail_from: int = 10**9  # start failing after this many reads
     delay: float = 0.0
 
-    instances: list = []
+    instances: ClassVar[list] = []
 
     def __init__(self, index):
         self.index = index

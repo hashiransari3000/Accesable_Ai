@@ -131,7 +131,6 @@ def annotate_image(image_bytes: bytes, detections: list[Detection]) -> bytes:
     """
     import cv2
     import numpy as np
-    from PIL import Image
 
     pil = _decode_image(image_bytes)
     frame = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)

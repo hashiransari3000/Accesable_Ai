@@ -47,6 +47,11 @@ Do not rely on this app for safe mobility or obstacle avoidance."
   - Handwriting, very low resolution, heavy blur, extreme rotation, and
     poor lighting can cause missing or wrong text.
   - OCR output can contain errors; users should verify important text.
+  - FALSE POSITIVES OCCUR: OCR can report "text" on images that contain
+    none. Observed example during Phase 7 testing: a single letter 'T'
+    at 97% model confidence extracted from a text-free synthetic room
+    image. Treat every extraction - especially short, high-confidence
+    single characters - with suspicion.
   - "No text found" is a valid result, not an error.
 
 6. NAVIGATION DEMO LIMITATIONS

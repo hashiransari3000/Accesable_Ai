@@ -121,7 +121,6 @@ class CameraCapture:
 
     # -- worker ------------------------------------------------------------------
     def _grab_loop(self) -> None:
-        import cv2
 
         failures = 0
         while self._running:

@@ -1,0 +1,16 @@
+# Ruff configuration for AccessAble AI.
+# Rationale: exceptions are deliberately caught broadly at MODULE
+# BOUNDARIES and converted into actionable user-facing states (see
+# docs/ARCHITECTURE.txt section 8). Ruff's BLE001/S110 would flag this
+# policy, so they are ignored project-wide; everything else stays on.
+line-length = 100
+
+[lint]
+ignore = [
+    "BLE001", # intentional boundary catches -> actionable error states
+    "S110",   # intentional degrade-to-text paths in voice/camera cleanup
+]
+
+[lint.per-file-ignores]
+# Explicit zip pairs kept for teaching clarity in the BFS cost helper.
+"modules/navigation/bfs.py" = ["RUF007"]

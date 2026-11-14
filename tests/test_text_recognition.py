@@ -2,7 +2,6 @@
 
 import io
 import sys
-import types
 
 import pytest
 from PIL import Image

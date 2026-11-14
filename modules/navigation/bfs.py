@@ -73,7 +73,7 @@ def _reconstruct(parent: dict[str, str | None], goal: str) -> list[str]:
 def _path_cost(graph: IndoorGraph, path: list[str]) -> float:
     """Sum of edge weights along the reconstructed path (0 if start==goal)."""
     total = 0.0
-    for a, b in zip(path, path[1:]):
+    for a, b in zip(path, path[1:]):  # explicit pairs; clear for teaching
         for neighbour, weight in graph.neighbours(a):
             if neighbour == b:
                 total += weight

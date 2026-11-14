@@ -122,9 +122,7 @@ class VoiceAssistant:
 
     def is_speaking(self) -> bool:
         thread = self._thread
-        if thread is None or not thread.is_alive():
-            return False
-        return True
+        return not (thread is None or not thread.is_alive())
 
     def has_last_text(self) -> bool:
         """True if there is a previous utterance to replay."""

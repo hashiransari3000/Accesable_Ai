@@ -1,6 +1,5 @@
 """Tests for relative position analysis (TEST_PLAN P1-P7)."""
 
-import pytest
 
 from modules.object_detection import Detection
 from modules.position_analysis import (

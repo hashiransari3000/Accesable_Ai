@@ -24,9 +24,9 @@ from modules import camera as cam_mod
 from modules import object_detection as od
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
+from modules.image_validation import validate_upload
 from modules.navigation import route_service as nav
 from modules.position_analysis import describe_position
-from modules.image_validation import DEFAULT_MAX_BYTES, validate_upload
 from ui import components, styles
 
 st.set_page_config(
@@ -166,12 +166,10 @@ def _load_sample(path: str) -> None:
 
 
 def _clear_image() -> None:
-    st.session_state.pop(SESSION_IMAGE, None)
-    st.session_state.pop(SESSION_NAME, None)
-    st.session_state.pop(SESSION_CLEAR, None)
-    st.session_state.pop(SESSION_RESULT, None)
-    st.session_state.pop(SESSION_RESULT_SRC, None)
-    st.session_state.pop(SESSION_RESULT_CONF, None)
+    vas.assistant.stop()  # easy reversal: no speech continues over cleared content
+    for key in (SESSION_IMAGE, SESSION_NAME, SESSION_CLEAR, SESSION_RESULT,
+                SESSION_RESULT_SRC, SESSION_RESULT_CONF):
+        st.session_state.pop(key, None)
     st.rerun()
 
 
@@ -497,7 +495,7 @@ def render_camera_section() -> None:
     )
     st.session_state[CAMERA_AUTO] = auto
     if auto:
-        interval = st.slider(
+        st.slider(
             "Preview refresh interval (seconds)", 0.5, 3.0, 1.0, 0.5,
             key="preview_interval",
         )
@@ -591,6 +589,7 @@ def _load_ocr_sample(path: str) -> None:
 
 
 def _clear_ocr_image() -> None:
+    vas.assistant.stop()  # easy reversal: no speech continues over cleared content
     for key in (OCR_SOURCE, OCR_NAME, OCR_CLEAR, OCR_RESULT, OCR_RESULT_SRC):
         st.session_state.pop(key, None)
     st.rerun()
@@ -901,15 +900,17 @@ def render_settings() -> None:
 
     st.subheader("Preferences")
     st.slider(
-        "Speech rate",
+        "Speech rate (words per minute)",
         min_value=100,
         max_value=220,
-        value=160,
+        value=vas.assistant.rate,
         step=10,
+        key="speech_rate",
         format="%d words/min",
-        help="Takes effect when voice feedback arrives in Phase 3.",
-        disabled=True,
+        help="Shared with the rate control on the Scene Assistant page; "
+        "applies to the next spoken utterance.",
     )
+    vas.assistant.set_rate(st.session_state.get("speech_rate", vas.DEFAULT_RATE))
     current_conf = st.session_state.get("conf_threshold", od.DEFAULT_CONFIDENCE)
     st.caption(
         f"Detection confidence threshold: currently **{current_conf:.2f}** - "
@@ -960,9 +961,11 @@ def main() -> None:
     page = render_sidebar()
 
     # Resource cleanup on page change: leaving Scene Assistant stops the
-    # camera (easy reversal + guaranteed release, spec Phase 5).
+    # camera (easy reversal + guaranteed release, spec Phase 5), and any
+    # playing speech stops too - nothing continues behind the user's back.
     if st.session_state.get(LAST_PAGE) not in (None, page):
         _stop_camera()
+        vas.assistant.stop()
     st.session_state[LAST_PAGE] = page
 
     if page == "Dashboard":

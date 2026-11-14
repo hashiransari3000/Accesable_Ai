@@ -23,11 +23,10 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 6 complete: indoor navigation demo — hand-written BFS and A* on a
-fictional sample building map (plain-text format), route visualization,
-and a BFS-vs-A* comparison (cost, hops, nodes explored, timing), all
-wrapped in simulation-only wording. Remaining: integration polish (P7)
-and final QA/docs (P8). See `docs/PHASE_LOG.txt` for progress.
+Phase 7 complete: all modules integrated, lint-clean (ruff), and the three
+primary user journeys verified end-to-end in a single scripted run. Speech
+lifecycle tightened (stops on clear/page change); Settings controls live.
+Remaining: final QA, README screenshots, and release (Phase 8). See `docs/PHASE_LOG.txt` for progress.
 
 ## Tech Stack
 
