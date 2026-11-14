@@ -18,7 +18,10 @@ import io
 import streamlit as st
 from PIL import Image
 
+from modules import announcement_manager as am
 from modules import object_detection as od
+from modules import voice_assistant as vas
+from modules.position_analysis import describe_position
 from modules.image_validation import DEFAULT_MAX_BYTES, validate_upload
 from ui import components, styles
 
@@ -305,13 +308,16 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
                 use_container_width=True,
             )
 
-    # Structured detection list
+    # Structured detection list, now with relative position (Phase 3)
     if result.detections:
         st.subheader("Detected objects")
         rows = [
             {
                 "Object": d.label.replace("_", " "),
                 "Confidence": f"{d.confidence * 100:.0f}%",
+                "Position in image": describe_position(
+                    d, result.image_size[0], result.image_size[1]
+                ).replace("appears on the ", "").replace(" side of the image", ""),
                 "Location in image (x1, y1, x2, y2)": str(d.bbox),
             }
             for d in result.detections
@@ -319,8 +325,8 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
         st.dataframe(rows, use_container_width=True, hide_index=True)
         st.caption(
             "Confidence is the model's score for this image region - not a "
-            "probability of safety. Descriptions refer to the uploaded image "
-            "only, not your physical surroundings."
+            "probability of safety. Position describes the uploaded image "
+            "only, never your physical surroundings or distances."
         )
     else:
         st.caption(
@@ -328,6 +334,77 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
             "model only knows its training classes, so valid images can "
             "legitimately produce no detections."
         )
+
+    # -- Spoken summary (Phase 3): text always visible, speech user-triggered
+    _render_speech_controls(result)
+
+
+def _render_speech_controls(result: od.DetectionResult) -> None:
+    """Concise spoken summary with speak / stop / replay / rate controls.
+
+    Speech is never started automatically (internal locus of control);
+    the text equivalent is always on screen (audio never the only channel).
+    """
+    if not result.detections:
+        return
+
+    summary = am.summarize(result.detections, result.image_size[0], result.image_size[1])
+
+    st.subheader("Spoken summary")
+    with st.container(border=True):
+        st.markdown(f"**Text version:** {summary.summary}")
+
+        tts_ok = vas.is_available()
+        if not tts_ok:
+            components.status_banner("warning", vas.setup_hint())
+
+        st.caption("Speech rate")
+        rate = st.slider(
+            "Speech rate (words per minute)",
+            min_value=100,
+            max_value=220,
+            value=vas.assistant.rate,
+            step=10,
+            key="speech_rate",
+            label_visibility="collapsed",
+            disabled=not tts_ok,
+            help="Adjust before pressing Speak; applies to the next utterance.",
+        )
+        vas.assistant.set_rate(rate)
+
+        b1, b2, b3 = st.columns(3)
+        speak_pressed = b1.button(
+            "Speak summary", type="primary", disabled=not tts_ok,
+        )
+        b2.button("Stop speech", disabled=not tts_ok, key="stop_speech")
+        b3.button(
+            "Replay speech",
+            disabled=not tts_ok or not vas.assistant.has_last_text(),
+            key="replay_speech",
+        )
+
+        if speak_pressed:
+            if vas.assistant.speak(summary.summary):
+                st.session_state["speech_status"] = "Speaking. Use Stop to interrupt."
+            else:
+                st.session_state["speech_status"] = "Speech could not start."
+        if st.session_state.get("stop_speech"):
+            vas.assistant.stop()
+            st.session_state["speech_status"] = "Speech stopped."
+        if st.session_state.get("replay_speech"):
+            if vas.assistant.replay():
+                st.session_state["speech_status"] = "Replaying last summary."
+            else:
+                st.session_state["speech_status"] = "Speech could not start."
+
+        status = st.session_state.get("speech_status", "")
+        if status:
+            if vas.assistant.is_speaking():
+                st.info(f"🔊 {status}", icon="🗣️")
+            else:
+                st.caption(status)
+        elif tts_ok and not vas.assistant.is_speaking():
+            st.caption("Not speaking. Press Speak summary to start.")
 
 
 # ---------------------------------------------------------------------------

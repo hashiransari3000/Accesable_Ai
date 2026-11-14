@@ -23,11 +23,11 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 2 complete: local YOLO object detection (yolo11n nano, CPU) connected
-to the Scene Assistant — upload an image, get real detections with
-confidence values, a toggleable annotated preview, and a structured result
-list. Speech (Phase 3) and OCR (Phase 4) are next; see `docs/PHASE_LOG.txt`
-for progress and `docs/TEST_PLAN.txt` for test status.
+Phase 3 complete: local YOLO detection plus relative-position descriptions
+("appears in the lower center area of the image") and an offline voice
+assistant — speak / stop / replay / rate controls over concise prioritized
+summaries (pyttsx3 + eSpeak NG, fully offline). OCR (Phase 4) is next; see
+`docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt` for test status.
 
 ## Tech Stack
 

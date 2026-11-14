@@ -34,18 +34,26 @@ ACCESSABLE AI - ARCHITECTURE
   modules/position_analysis.py
       Pure functions. Maps a bounding box to coarse screen-relative
       position: horizontal (left / center / right) and vertical
-      (upper / middle / lower). Returns cautious phrasing strings.
+      (upper / middle / lower), classified by box centre against image
+      thirds. Returns cautious phrasing strings ("appears on the left
+      side of the image") and never distance or safety claims.
 
   modules/announcement_manager.py
-      Prioritizes detections (by confidence + class usefulness),
-      deduplicates repeated announcements, and applies a cooldown so the
-      same unchanged object is not repeated. Produces the final spoken
-      summary text and per-object phrases.
+      Pure logic. Prioritizes detections (confidence + a small
+      usefulness boost for classes like "person"), caps the spoken list
+      (default 4 items), and builds concise phrases per object plus a
+      summary. Also provides RepetitionGuard, a cooldown-based
+      deduplication guard for continuous sources (camera, Phase 5) so
+      the same unchanged object is not announced every frame.
 
   modules/voice_assistant.py
-      Wraps pyttsx3 (+ eSpeak NG on Linux). speak / stop / replay /
-      rate control. Degrades gracefully: if the TTS engine is missing it
-      reports an actionable setup hint instead of crashing.
+      Wraps pyttsx3 (+ eSpeak NG on Linux) for fully offline speech.
+      speak / stop / replay / rate control. Speech runs in a daemon
+      thread (Streamlit scripts must not block); a fresh engine is
+      created per utterance because pyttsx3 engines are not thread-safe.
+      Availability is probed once and cached; if TTS is missing the UI
+      shows the text summary plus an actionable setup hint instead of
+      crashing. Speech is user-triggered only; nothing auto-plays.
 
   modules/text_recognition.py
       Wraps EasyOCR. Loaded on demand only when the user requests text
@@ -78,8 +86,9 @@ ACCESSABLE AI - ARCHITECTURE
 ------------------------------
   Uploaded image -> validation -> OpenCV preprocessing (resize,
   preserve aspect ratio) -> YOLO inference -> structured detections
-  -> position analysis -> announcement manager (prioritize + dedupe)
-  -> UI result list / annotated preview -> user-triggered TTS.
+  -> position analysis -> announcement manager (prioritize + concise
+  summary) -> UI result list / annotated preview / text summary
+  -> user-triggered TTS (background thread).
 
 4. DATA FLOW (READ TEXT)
 ------------------------

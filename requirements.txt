@@ -1,5 +1,5 @@
 # AccessAble AI dependency pins.
-# Versions verified on this machine (Python 3.14, Linux) in Phase 2.
+# Versions verified on this machine (Python 3.14, Linux) in Phase 3.
 # System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
 #
 # NOTE (CPU-only laptops): install torch and torchvision from the CPU index
@@ -16,7 +16,7 @@ opencv-python==5.0.0.93
 ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
 
 # Offline speech (Phase 3)
-# pyttsx3
+pyttsx3==2.99               # requires the espeak-ng system package on Linux
 
 # OCR, lazy-loaded at runtime (Phase 4)
 # easyocr
