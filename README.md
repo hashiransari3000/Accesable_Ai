@@ -23,10 +23,10 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 4 complete: local OCR text reading (EasyOCR, English, lazy-loaded)
-with a "no text found" state distinct from errors, copy/download support,
-and read-aloud. The app now covers Scene Assistant, Read Text, and offline
-speech; camera (Phase 5) and navigation (Phase 6) are next. See
+Phase 5 complete: controlled live camera mode added — deliberate
+activation, live preview, snapshot-based detection (capture decoupled
+from inference), guaranteed resource cleanup on stop/page change, and
+graceful no-camera fallback. Navigation demo (Phase 6) is next. See
 `docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt` for tests.
 
 ## Tech Stack

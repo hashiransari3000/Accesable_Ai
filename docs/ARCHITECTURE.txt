@@ -69,6 +69,17 @@ ACCESSABLE AI - ARCHITECTURE
       Camera capture helper for the live mode. Deliberate activation
       only, frame throttling, and guaranteed resource release on stop.
 
+  modules/camera.py
+      Controlled live camera capture (Phase 5). Activation requires a
+      deliberate user action; the app never starts the camera on load.
+      A background daemon thread grabs frames at a modest target FPS
+      (15) and keeps only the latest frame. Capture rate is fully
+      decoupled from inference: detection runs per user-triggered
+      snapshot only, and OCR never runs on camera frames. stop() is
+      idempotent and releases the device; the UI also stops the camera
+      on page change. No-device, permission-denied, and device-lost
+      paths produce readable fallback messages pointing to image upload.
+
   modules/navigation/graph_data.py
       The fictional sample building as a graph: named nodes and edges,
       stored in a readable data file under assets/sample_maps/.

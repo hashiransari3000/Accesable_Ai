@@ -14,11 +14,13 @@ Pages:
 from __future__ import annotations
 
 import io
+import time
 
 import streamlit as st
 from PIL import Image
 
 from modules import announcement_manager as am
+from modules import camera as cam_mod
 from modules import object_detection as od
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
@@ -57,6 +59,12 @@ OCR_NAME = "ocr_image_name"
 OCR_CLEAR = "ocr_confirm_clear"
 OCR_RESULT = "ocr_result"     # tr.TextRecognitionResult
 OCR_RESULT_SRC = "ocr_source"
+
+CAMERA = "camera_instance"        # cam_mod.CameraCapture
+CAMERA_AUTO = "camera_auto_preview"
+CAMERA_SNAPSHOT = "camera_snapshot_bytes"
+CAMERA_RESULT = "camera_result"   # od.DetectionResult for the snapshot
+LAST_PAGE = "last_active_page"
 
 
 def go(page: str) -> None:
@@ -274,6 +282,9 @@ def render_scene_assistant() -> None:
 
     _render_detection_results(image_bytes)
 
+    # Camera mode (Phase 5) lives on the same page, after image analysis.
+    render_camera_section()
+
 
 def _render_detection_results(current_image_bytes: bytes) -> None:
     """Render the stored analysis result with all required states."""
@@ -346,7 +357,9 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
     _render_speech_controls(result)
 
 
-def _render_speech_controls(result: od.DetectionResult) -> None:
+def _render_speech_controls(
+    result: od.DetectionResult, heading: str = "Spoken summary"
+) -> None:
     """Concise spoken summary with speak / stop / replay / rate controls.
 
     Speech is never started automatically (internal locus of control);
@@ -357,7 +370,7 @@ def _render_speech_controls(result: od.DetectionResult) -> None:
 
     summary = am.summarize(result.detections, result.image_size[0], result.image_size[1])
 
-    st.subheader("Spoken summary")
+    st.subheader(heading)
     with st.container(border=True):
         st.markdown(f"**Text version:** {summary.summary}")
 
@@ -412,6 +425,157 @@ def _render_speech_controls(result: od.DetectionResult) -> None:
                 st.caption(status)
         elif tts_ok and not vas.assistant.is_speaking():
             st.caption("Not speaking. Press Speak summary to start.")
+
+
+# ---------------------------------------------------------------------------
+# Live camera mode (Phase 5) - deliberate activation, snapshot inference
+# ---------------------------------------------------------------------------
+def _stop_camera() -> None:
+    """Stop the camera and drop its state. Always safe to call."""
+    cam_inst = st.session_state.get(CAMERA)
+    if cam_inst is not None:
+        cam_inst.stop()
+    st.session_state.pop(CAMERA, None)
+    st.session_state.pop(CAMERA_SNAPSHOT, None)
+    st.session_state.pop(CAMERA_RESULT, None)
+
+
+def _encode_frame_png(frame) -> bytes | None:
+    import cv2
+
+    ok, buf = cv2.imencode(".png", frame)
+    return buf.tobytes() if ok else None
+
+
+def render_camera_section() -> None:
+    st.divider()
+    st.subheader("Live camera")
+    st.caption(
+        "🔒 Camera frames are processed locally in memory and are never "
+        "saved, uploaded, or transmitted. The camera stays OFF until you "
+        "press Start."
+    )
+
+    cam_inst = st.session_state.get(CAMERA)
+
+    if not (cam_inst and cam_inst.is_active()):
+        if cam_inst is not None and cam_inst.get_error():
+            components.status_banner("error", cam_inst.get_error())
+        st.button(
+            "Start camera",
+            key="start_camera",
+            help="Deliberate action: nothing starts on page load.",
+        )
+        if st.session_state.get("start_camera"):
+            new_cam = cam_mod.CameraCapture()
+            error = new_cam.start()
+            if error:
+                components.status_banner("error", error)
+            else:
+                st.session_state[CAMERA] = new_cam
+                st.rerun()
+        return
+
+    # -- Camera is active ------------------------------------------------------
+    components.status_banner(
+        "success",
+        "Camera is active. Press Stop camera when you are done - it also "
+        "stops automatically when you leave this page.",
+    )
+    if cam_inst.get_error():
+        components.status_banner("error", cam_inst.get_error())
+        _stop_camera()
+        st.rerun()
+
+    auto = st.checkbox(
+        "Live preview (auto-refresh)",
+        value=st.session_state.get(CAMERA_AUTO, False),
+        help="Refreshes the preview every interval. Inference still runs "
+        "only when you press Capture & analyze.",
+        key="auto_preview",
+    )
+    st.session_state[CAMERA_AUTO] = auto
+    if auto:
+        interval = st.slider(
+            "Preview refresh interval (seconds)", 0.5, 3.0, 1.0, 0.5,
+            key="preview_interval",
+        )
+
+    frame = cam_inst.get_frame()
+    if frame is None:
+        st.caption("Waiting for the first frame...")
+    else:
+        st.image(
+            frame[:, :, ::-1],  # BGR -> RGB for display
+            caption="Live preview (uncaptured frames are not analyzed)",
+            use_container_width=True,
+        )
+
+    b1, b2, _ = st.columns([1.4, 1.4, 2])
+    capture_pressed = b1.button("Capture & analyze", type="primary")
+    b2.button("Stop camera", key="stop_camera")
+
+    if st.session_state.get("stop_camera"):
+        _stop_camera()
+        st.rerun()
+
+    if capture_pressed:
+        if frame is None:
+            components.status_banner("warning", "No frame available yet.")
+        else:
+            snapshot = _encode_frame_png(frame)
+            with st.spinner("Analyzing snapshot..."):
+                result = od.analyze_image(
+                    snapshot,
+                    confidence_threshold=st.session_state.get("conf_threshold", od.DEFAULT_CONFIDENCE),
+                )
+            st.session_state[CAMERA_SNAPSHOT] = snapshot
+            st.session_state[CAMERA_RESULT] = result
+
+    _render_camera_results()
+
+    # Throttled preview loop: capture rate (15 fps in the grabber thread)
+    # stays decoupled from the UI refresh and from inference.
+    if auto and cam_inst.is_active():
+        time.sleep(st.session_state.get("preview_interval", 1.0))
+        st.rerun()
+
+
+def _render_camera_results() -> None:
+    result: od.DetectionResult | None = st.session_state.get(CAMERA_RESULT)
+    if result is None:
+        return
+    st.markdown("**Snapshot analysis** (from the moment you pressed Capture):")
+    if result.error:
+        components.status_banner("error", result.error)
+        if not result.detections:
+            return
+    snapshot = st.session_state.get(CAMERA_SNAPSHOT)
+    if result.annotated_png and snapshot:
+        st.image(
+            Image.open(io.BytesIO(result.annotated_png)),
+            caption="Analyzed snapshot",
+            use_container_width=True,
+        )
+    if result.detections:
+        rows = [
+            {
+                "Object": d.label.replace("_", " "),
+                "Confidence": f"{d.confidence * 100:.0f}%",
+                "Position in image": describe_position(
+                    d, result.image_size[0], result.image_size[1]
+                ).replace("appears on the ", "").replace(" side of the image", ""),
+            }
+            for d in result.detections
+        ]
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+    else:
+        components.status_banner(
+            "info",
+            "No objects detected in this snapshot. The model recognizes only "
+            "its training classes (80 COCO classes).",
+        )
+    _render_speech_controls(result, heading="Spoken snapshot summary")
 
 
 # ---------------------------------------------------------------------------
@@ -664,6 +828,13 @@ def render_settings() -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     page = render_sidebar()
+
+    # Resource cleanup on page change: leaving Scene Assistant stops the
+    # camera (easy reversal + guaranteed release, spec Phase 5).
+    if st.session_state.get(LAST_PAGE) not in (None, page):
+        _stop_camera()
+    st.session_state[LAST_PAGE] = page
+
     if page == "Dashboard":
         render_dashboard()
     elif page == "Scene Assistant":
