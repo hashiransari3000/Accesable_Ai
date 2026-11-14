@@ -24,6 +24,7 @@ from modules import camera as cam_mod
 from modules import object_detection as od
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
+from modules.navigation import route_service as nav
 from modules.position_analysis import describe_position
 from modules.image_validation import DEFAULT_MAX_BYTES, validate_upload
 from ui import components, styles
@@ -742,7 +743,7 @@ def _render_ocr_results(current_image_bytes: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Indoor Navigation Demo (Phase 6)
+# Indoor Navigation Demo (Phase 6) - simulation on a fictional sample map
 # ---------------------------------------------------------------------------
 def render_navigation() -> None:
     components.page_header(
@@ -752,11 +753,140 @@ def render_navigation() -> None:
     components.safety_notice()  # mandatory on the navigation page
     components.status_banner(
         "warning",
-        "Simulation only. This page will use a fixed sample map; it does not "
-        "know your live location and cannot detect real obstacles.",
+        "Simulation only. This page uses a FIXED FICTIONAL MAP - it does "
+        "not know your live location and cannot detect stairs, doors, "
+        "temporary obstacles, or step-free routes. It is an algorithm "
+        "demonstration, not live guidance.",
     )
-    components.placeholder_panel(
-        "Sample map, start/destination selectors, BFS vs A* comparison", "Phase 6"
+
+    graph = nav.get_graph()
+    names = graph.ids()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        start = st.selectbox(
+            "Start location", names,
+            index=names.index("entrance"),
+            format_func=graph.display_name,
+        )
+    with c2:
+        # default destination: science_lab (far corner)
+        dest = st.selectbox(
+            "Destination", names,
+            index=names.index("science_lab"),
+            format_func=graph.display_name,
+        )
+
+    algorithm = st.radio(
+        "Algorithm", ["BFS (fewest hops)", "A* (shortest distance)", "Compare both"],
+        horizontal=True,
+        help="BFS minimizes the number of hops; A* minimizes walking "
+        "distance using an admissible straight-line heuristic.",
+    )
+
+    if st.button("Find route", type="primary"):
+        st.session_state["nav_request"] = (start, dest, algorithm)
+        st.rerun()
+
+    request = st.session_state.get("nav_request")
+    if not request:
+        st.caption(
+            "Pick a start and destination, then press Find route. The map "
+            "and its format are documented in assets/sample_maps/."
+        )
+        return
+
+    start, dest, algorithm = request
+    if algorithm == "Compare both":
+        bfs_result, astar_result = nav.compare_routes(graph, start, dest)
+        _render_route_result(bfs_result, graph)
+        st.divider()
+        _render_route_result(astar_result, graph)
+        _render_comparison(bfs_result, astar_result)
+    else:
+        algo_key = "BFS" if algorithm.startswith("BFS") else "A*"
+        _render_route_result(nav.run_route(graph, start, dest, algo_key), graph)
+
+
+def _render_route_result(result: nav.RouteResult, graph) -> None:
+    title = result.algorithm if result.algorithm else "Route"
+    st.subheader(f"{title} result")
+
+    if result.error:
+        components.status_banner("error", result.error)
+        return
+
+    if result.unreachable:
+        components.status_banner(
+            "info",
+            f"No route exists between {graph.display_name(result.start)} "
+            f"and {graph.display_name(result.goal)} on this map "
+            f"({result.explored_count} nodes explored before concluding this). "
+            "This is a correct algorithmic result for the disconnected part "
+            "of the sample map.",
+        )
+        return
+
+    components.status_banner(
+        "success",
+        f"Route found: {result.hops} hop(s), {result.cost:.0f} m, "
+        f"{result.explored_count} nodes explored, {result.time_ms} ms.",
+    )
+
+    # Route as a readable flow, then a step table with cumulative distance.
+    st.markdown(" ** → ** ".join(f"**{name}**" for name in result.path_display))
+
+    with st.expander("Step-by-step route"):
+        cumulative = 0.0
+        for i, (node_id, name) in enumerate(zip(result.path, result.path_display)):
+            if i > 0:
+                for neighbour, weight in graph.neighbours(result.path[i - 1]):
+                    if neighbour == node_id:
+                        cumulative += weight
+                        break
+            st.markdown(
+                f"**{i + 1}. {name}**"
+                + (f" — {cumulative:.0f} m from start" if i > 0 else " — starting point")
+            )
+
+    with st.expander(f"Nodes explored ({result.explored_count})"):
+        st.caption(" → ".join(result.explored_names))
+
+    st.caption(
+        "These numbers describe the fictional sample map only - not any "
+        "real building, and never safe real-world guidance."
+    )
+
+
+def _render_comparison(bfs_result: nav.RouteResult, astar_result: nav.RouteResult) -> None:
+    st.subheader("BFS vs A* comparison")
+    if not (bfs_result.found and astar_result.found):
+        return
+    st.dataframe(
+        [
+            {
+                "Algorithm": "BFS",
+                "Hops": bfs_result.hops,
+                "Distance (m)": round(bfs_result.cost, 1),
+                "Nodes explored": bfs_result.explored_count,
+                "Time (ms)": bfs_result.time_ms,
+            },
+            {
+                "Algorithm": "A*",
+                "Hops": astar_result.hops,
+                "Distance (m)": round(astar_result.cost, 1),
+                "Nodes explored": astar_result.explored_count,
+                "Time (ms)": astar_result.time_ms,
+            },
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption(
+        "BFS minimizes hops and ignores distances; A* minimizes walking "
+        "distance using the straight-line heuristic and typically explores "
+        "fewer nodes. Both are correct for the sample map - they simply "
+        "optimize different things."
     )
 
 

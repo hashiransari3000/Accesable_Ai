@@ -1,0 +1,50 @@
+# AccessAble AI - sample indoor map (FICTIONAL, for algorithm demo only)
+#
+# Format (plain text, human-readable):
+#   node <id> | <display name> | <x> | <y>     coordinates in metres, floor plan
+#   edge <id_a> <id_b> | <weight>             weight = walking distance in metres
+#   blank lines and lines starting with '#' are ignored
+#
+# Edge weights are the straight-line distance between the two endpoints
+# (rounded up). This guarantees the A* euclidean heuristic is ADMISSIBLE:
+# it never overestimates the true path cost (see modules/navigation/astar.py).
+#
+# This map does NOT represent any real building. It does not model stairs,
+# doors, lift access, temporary obstacles, or step-free routes. It is used
+# purely to demonstrate BFS and A* path-finding on a graph.
+
+# ---- ground floor: sample community centre (fictional) ----
+node entrance | Main Entrance | 10 | 0
+node main_hall | Main Hall | 10 | 8
+node corridor_a | Corridor A (West) | 4 | 8
+node reading_corner | Reading Corner | 0 | 14
+node corridor_b | Corridor B (North-West) | 4 | 14
+node library | Library | 0 | 20
+node storage | Storage Room | 4 | 20
+node staff_room | Staff Room | 10 | 20
+node computer_lab | Computer Lab | 10 | 14
+node corridor_c | Corridor C (East) | 16 | 14
+node reception | Reception Desk | 16 | 8
+node science_lab | Science Lab | 22 | 14
+node cafe | Cafeteria | 22 | 8
+
+# ---- separate wing with NO connecting corridor (for unreachable tests) ----
+node annex_lobby | Annex Lobby | 30 | 0
+node annex_office | Annex Office | 30 | 6
+
+edge entrance main_hall | 8
+edge main_hall corridor_a | 6
+edge corridor_a reading_corner | 8
+edge reading_corner corridor_b | 4
+edge corridor_b library | 8
+edge corridor_b storage | 6
+edge storage staff_room | 6
+edge staff_room computer_lab | 6
+edge corridor_b computer_lab | 6
+edge computer_lab corridor_c | 6
+edge corridor_c reception | 6
+edge reception main_hall | 6
+edge corridor_c science_lab | 6
+edge science_lab cafe | 6
+edge cafe reception | 6
+edge annex_lobby annex_office | 6

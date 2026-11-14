@@ -23,11 +23,11 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 5 complete: controlled live camera mode added — deliberate
-activation, live preview, snapshot-based detection (capture decoupled
-from inference), guaranteed resource cleanup on stop/page change, and
-graceful no-camera fallback. Navigation demo (Phase 6) is next. See
-`docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt` for tests.
+Phase 6 complete: indoor navigation demo — hand-written BFS and A* on a
+fictional sample building map (plain-text format), route visualization,
+and a BFS-vs-A* comparison (cost, hops, nodes explored, timing), all
+wrapped in simulation-only wording. Remaining: integration polish (P7)
+and final QA/docs (P8). See `docs/PHASE_LOG.txt` for progress.
 
 ## Tech Stack
 

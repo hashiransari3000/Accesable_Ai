@@ -81,18 +81,28 @@ ACCESSABLE AI - ARCHITECTURE
       paths produce readable fallback messages pointing to image upload.
 
   modules/navigation/graph_data.py
-      The fictional sample building as a graph: named nodes and edges,
-      stored in a readable data file under assets/sample_maps/.
+      Parses and validates the fictional sample building map from
+      assets/sample_maps/sample_building.txt (human-readable "node" and
+      "edge" lines with floor-plan coordinates). Also provides the
+      euclidean heuristic builder, documented as admissible because edge
+      weights equal straight-line endpoint distances.
 
-  modules/navigation/bfs.py, astar.py
-      Hand-written, readable implementations of BFS (unweighted,
-      shortest-hop) and A* (weighted, documented admissible heuristic
-      or zero heuristic). NetworkX is used only for visualization
-      validation, never to compute the taught algorithms.
+  modules/navigation/bfs.py
+      Hand-written BFS: FIFO deque, visited set via parent pointers,
+      backwards path reconstruction. Minimizes hops, ignores weights.
+      Returns path (or None when unreachable) plus the exploration order.
+
+  modules/navigation/astar.py
+      Hand-written A* with heapq priority queue: f(n) = g(n) + h(n),
+      settled set, stale-entry skipping, insertion-counter tie-breaking.
+      Uses the admissible euclidean heuristic (zero heuristic supported,
+      i.e. Dijkstra behaviour). Minimizes weighted distance.
 
   modules/navigation/route_service.py
-      Runs BFS and A* on the sample graph, returns route, explored
-      nodes, path cost/length, and timing for the comparison view.
+      Caches the parsed sample graph, runs BFS and/or A*, and converts
+      every outcome (route, unreachable, invalid node, failure) into an
+      explicit RouteResult with cost, hops, explored nodes, and timing
+      for the comparison view.
 
   ui/components.py, ui/styles.py
       Shared UI components (status banners, buttons, result cards) and
