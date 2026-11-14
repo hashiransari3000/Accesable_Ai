@@ -20,10 +20,16 @@ ACCESSABLE AI - ARCHITECTURE
       into modules/ and ui/. Contains no detection/OCR/graph logic.
 
   modules/object_detection.py
-      Wraps Ultralytics YOLO. Loads a nano pretrained model lazily,
-      caches it, runs inference on a preprocessed image, and returns
-      structured detections: [{label, confidence, bbox(x1,y1,x2,y2)}].
-      Knows nothing about the UI.
+      Wraps Ultralytics YOLO (yolo11n nano, AGPL-3.0, COCO-80 classes).
+      Loads the model lazily on first use and caches it in a module-level
+      cache (never reloaded per interaction). Runs CPU inference
+      (imgsz 640, device="cpu"), then returns a structured result:
+      detections [{label, confidence, bbox}], an annotated PNG preview,
+      image size, inference time in ms, and an error field. Pure helpers
+      (filter_by_confidence, clamp_bbox, format_label) are separated for
+      unit testing without a model. Weights download once to
+      models/yolo11n.pt on first use, then work offline. Knows nothing
+      about the UI.
 
   modules/position_analysis.py
       Pure functions. Maps a bounding box to coarse screen-relative

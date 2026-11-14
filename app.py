@@ -18,6 +18,7 @@ import io
 import streamlit as st
 from PIL import Image
 
+from modules import object_detection as od
 from modules.image_validation import DEFAULT_MAX_BYTES, validate_upload
 from ui import components, styles
 
@@ -43,6 +44,9 @@ SAMPLE_SIGN = "assets/sample_images/sample_sign.png"
 SESSION_IMAGE = "scene_image_bytes"
 SESSION_NAME = "scene_image_name"
 SESSION_CLEAR = "scene_confirm_clear"
+SESSION_RESULT = "detection_result"      # od.DetectionResult
+SESSION_RESULT_SRC = "detection_source"  # image bytes the result belongs to
+SESSION_RESULT_CONF = "detection_conf"   # threshold used for that result
 
 
 def go(page: str) -> None:
@@ -120,7 +124,11 @@ def render_dashboard() -> None:
     with r2:
         st.metric("Speech engine", "eSpeak NG", help="Offline TTS backend")
     with r3:
-        st.metric("Detection model", "not loaded", help="Loads on first use in Phase 2")
+        st.metric(
+            "Detection model",
+            "yolo11n (cached)" if od.is_model_loaded() else "loads on first use",
+            help="Nano YOLO on CPU; first use downloads ~5 MB once, then offline.",
+        )
 
     components.privacy_notice()
     if st.button("Open Scene Assistant", type="primary"):
@@ -142,6 +150,9 @@ def _clear_image() -> None:
     st.session_state.pop(SESSION_IMAGE, None)
     st.session_state.pop(SESSION_NAME, None)
     st.session_state.pop(SESSION_CLEAR, None)
+    st.session_state.pop(SESSION_RESULT, None)
+    st.session_state.pop(SESSION_RESULT_SRC, None)
+    st.session_state.pop(SESSION_RESULT_CONF, None)
     st.rerun()
 
 
@@ -190,6 +201,13 @@ def render_scene_assistant() -> None:
         )
         return
 
+    # Stale-result guard: if the image changed since the last analysis,
+    # old results must not be presented as current (reduce memory load).
+    stale = (
+        st.session_state.get(SESSION_RESULT) is not None
+        and st.session_state.get(SESSION_RESULT_SRC) != image_bytes
+    )
+
     with st.container(border=True):
         left, right = st.columns([3, 1])
         with left:
@@ -209,25 +227,106 @@ def render_scene_assistant() -> None:
                 st.session_state[SESSION_CLEAR] = True
                 st.rerun()
 
-    # -- Analyze (placeholder until Phase 2) ---------------------------------
+    if stale:
+        components.status_banner(
+            "warning",
+            "The image changed since the last analysis. Press "
+            "Analyze image again to refresh the results.",
+        )
+
+    # -- Analyze (real local YOLO inference, Phase 2) -------------------------
     st.divider()
+    conf_threshold = st.slider(
+        "Detection confidence threshold",
+        min_value=0.05,
+        max_value=0.95,
+        value=0.40,
+        step=0.05,
+        format="%.2f",
+        help=(
+            "Minimum model score for a detection to be shown. Confidence is "
+            "a model score, not a probability of safety."
+        ),
+    )
+
     if st.button("Analyze image", type="primary"):
-        with st.spinner("Processing image..."):
-            import time
+        first_run = not od.is_model_loaded()
+        hint = (
+            "Loading model (one-time ~5 MB download)..." if first_run
+            else "Detecting objects locally..."
+        )
+        with st.spinner(hint):
+            result = od.analyze_image(image_bytes, confidence_threshold=conf_threshold)
+        st.session_state[SESSION_RESULT] = result
+        st.session_state[SESSION_RESULT_SRC] = image_bytes
+        st.session_state[SESSION_RESULT_CONF] = conf_threshold
+        st.rerun()
 
-            time.sleep(1.0)  # stand-in for inference latency until Phase 2
+    _render_detection_results(image_bytes)
 
+
+def _render_detection_results(current_image_bytes: bytes) -> None:
+    """Render the stored analysis result with all required states."""
+    result: od.DetectionResult | None = st.session_state.get(SESSION_RESULT)
+    if result is None or st.session_state.get(SESSION_RESULT_SRC) != current_image_bytes:
+        return  # no result yet, or results belong to a previous image
+
+    conf_used = st.session_state.get(SESSION_RESULT_CONF, od.DEFAULT_CONFIDENCE)
+
+    if result.error:
+        components.status_banner("error", result.error)
+        if not result.detections:
+            return
+
+    if result.detections:
+        components.status_banner(
+            "success",
+            f"{len(result.detections)} object(s) detected "
+            f"(threshold {conf_used:.2f}, inference {result.inference_ms} ms on CPU).",
+        )
+    else:
         components.status_banner(
             "info",
-            "Object detection is not connected yet. This placeholder keeps "
-            "the workflow honest until Phase 2 adds the real YOLO model.",
+            f"No objects detected above the threshold {conf_used:.2f}. "
+            "Try lowering the threshold or using a clearer image. Note: the "
+            "model recognizes only its training classes (80 COCO classes).",
         )
-        components.placeholder_panel(
-            "Detections with labels, confidence values, and relative positions",
-            "Phase 2",
+
+    # Annotated preview with a hide-overlay option (avoid clutter, spec 3.1)
+    if result.annotated_png:
+        show_boxes = st.checkbox(
+            "Show bounding boxes on preview", value=True,
+            help="Uncheck to view the original image instead of the overlay.",
         )
-        components.placeholder_panel(
-            "Spoken summary with speak / stop / replay controls", "Phase 3"
+        if show_boxes:
+            st.image(
+                Image.open(io.BytesIO(result.annotated_png)),
+                caption="Detected objects in this image",
+                use_container_width=True,
+            )
+
+    # Structured detection list
+    if result.detections:
+        st.subheader("Detected objects")
+        rows = [
+            {
+                "Object": d.label.replace("_", " "),
+                "Confidence": f"{d.confidence * 100:.0f}%",
+                "Location in image (x1, y1, x2, y2)": str(d.bbox),
+            }
+            for d in result.detections
+        ]
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.caption(
+            "Confidence is the model's score for this image region - not a "
+            "probability of safety. Descriptions refer to the uploaded image "
+            "only, not your physical surroundings."
+        )
+    else:
+        st.caption(
+            "Tip: lower the threshold above and analyze again. The pretrained "
+            "model only knows its training classes, so valid images can "
+            "legitimately produce no detections."
         )
 
 
@@ -285,15 +384,10 @@ def render_settings() -> None:
         help="Takes effect when voice feedback arrives in Phase 3.",
         disabled=True,
     )
-    st.slider(
-        "Detection confidence threshold",
-        min_value=0.05,
-        max_value=0.95,
-        value=0.40,
-        step=0.05,
-        format="%.2f",
-        help="Minimum model score for a detection to be shown. Available in Phase 2.",
-        disabled=True,
+    current_conf = st.session_state.get("conf_threshold", od.DEFAULT_CONFIDENCE)
+    st.caption(
+        f"Detection confidence threshold: currently **{current_conf:.2f}** - "
+        "change it with the slider on the Scene Assistant page."
     )
 
     st.subheader("Model / device status")
@@ -301,12 +395,16 @@ def render_settings() -> None:
     with d1:
         st.markdown(
             "- **Device:** CPU only (GPU optional, not required)\n"
-            "- **Detection model:** not loaded yet (Phase 2)\n"
+            "- **Detection model:** yolo11n nano (Ultralytics, AGPL-3.0), "
+            "cached locally after first use\n"
             "- **OCR model:** not loaded yet (Phase 4)"
         )
     with d2:
         st.markdown(
             "- **Speech:** eSpeak NG detected on this system\n"
+            "- **Detection model:** yolo11n nano, CPU inference "
+            "(one-time ~5 MB download, then offline)\n"
+            "- **OCR model:** not loaded yet (Phase 4)\n"
             "- **Network use:** one-time model download only\n"
             "- **Data retention:** none"
         )

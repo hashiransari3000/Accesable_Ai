@@ -1,22 +1,25 @@
 # AccessAble AI dependency pins.
-# Versions verified on this machine (Python 3.14, Linux) in Phase 1.
+# Versions verified on this machine (Python 3.14, Linux) in Phase 2.
 # System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
+#
+# NOTE (CPU-only laptops): install torch and torchvision from the CPU index
+# BEFORE the rest, to avoid pulling ~2 GB of CUDA libraries:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
 
 # UI
 streamlit==1.67.0
 
-# Image utilities (Phase 1); CV/detection/OCR arrive in later phases
-pillow==13.0.0
-
 # Computer vision / detection (Phase 2)
-# opencv-python
-# ultralytics
-
-# OCR, lazy-loaded at runtime (Phase 4)
-# easyocr
+pillow==13.0.0
+opencv-python==5.0.0.93
+ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
 
 # Offline speech (Phase 3)
 # pyttsx3
+
+# OCR, lazy-loaded at runtime (Phase 4)
+# easyocr
 
 # Graph visualization/validation only (algorithms are hand-written) (Phase 6)
 # networkx

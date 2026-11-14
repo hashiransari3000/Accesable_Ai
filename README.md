@@ -23,10 +23,11 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 1 complete: accessible app shell, dashboard, and a validated image
-upload workflow (Scene Assistant UI with honest placeholders for detection
-and speech). See `docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt`
-for test status.
+Phase 2 complete: local YOLO object detection (yolo11n nano, CPU) connected
+to the Scene Assistant — upload an image, get real detections with
+confidence values, a toggleable annotated preview, and a structured result
+list. Speech (Phase 3) and OCR (Phase 4) are next; see `docs/PHASE_LOG.txt`
+for progress and `docs/TEST_PLAN.txt` for test status.
 
 ## Tech Stack
 

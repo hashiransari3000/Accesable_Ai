@@ -23,28 +23,31 @@ ACCESSABLE AI - SETUP GUIDE (Fedora / Linux)
 
 4. INSTALL PYTHON PACKAGES
 -------------------------
+  CPU-only laptop (recommended, avoids ~2 GB of CUDA downloads):
+      pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       pip install -r requirements.txt
 
   Pip packages used (pinned in requirements.txt):
     streamlit      UI framework
-    ultralytics    YOLO object detection (nano model, CPU inference)
-    opencv-python  image handling and preprocessing
-    pyttsx3        offline text-to-speech wrapper
-    easyocr        local OCR (loaded on demand)
+    ultralytics    YOLO object detection (yolo11n, CPU inference)
+    opencv-python  image handling, preprocessing, annotation
     pillow         image utilities
-    networkx       graph visualization/validation only
+    pyttsx3        offline text-to-speech wrapper (Phase 3)
+    easyocr        local OCR (Phase 4, loaded on demand)
+    networkx       graph visualization/validation only (Phase 6)
     pytest         test runner
+    torch/torchvision (CPU builds) deep-learning runtime for YOLO
 
   System vs pip: only espeak-ng is a system package; everything else
   installs via pip.
 
 5. MODEL DOWNLOAD BEHAVIOUR
 ---------------------------
-  - The YOLO nano weights download automatically over the network ONCE,
-    on first inference, into the local cache (see models/README.txt).
+  - YOLO11n weights (~5.4 MB) download automatically over the network
+    ONCE, on the first detection run, into models/yolo11n.pt.
   - After that first download, detection works fully offline.
   - EasyOCR downloads its recognition model on first OCR use, likewise
-    cached locally.
+    cached locally (Phase 4).
   - No paid services, accounts, or API keys are involved.
 
 6. RUN THE APP
@@ -70,9 +73,17 @@ ACCESSABLE AI - SETUP GUIDE (Fedora / Linux)
   T4  Memory pressure
       -> OCR loads only when requested; close other heavy apps.
   T5  Package install fails on Python 3.14
-      -> Documented fallback: use Python 3.11/3.12 venv
-         (python3.12 -m venv .venv) - verify in Phase 2.
-  T6  Port 8501 busy
+      -> Verified working with the pinned versions in requirements.txt
+         (torch 2.15.0+cpu, torchvision 0.29.2+cpu, ultralytics 8.4.212,
+         opencv 5.0.0.93, streamlit 1.67.0). If a wheel is missing on a
+         different machine, fall back to a Python 3.11/3.12 venv:
+         python3.12 -m venv .venv
+  T6  "operator torchvision::nms does not exist"
+      -> torch/torchvision mismatch. Reinstall both CPU builds together:
+         pip install --upgrade torch torchvision \
+             --index-url https://download.pytorch.org/whl/cpu
+      (This exact failure was hit and fixed during Phase 2.)
+  T7  Port 8501 busy
       -> streamlit run app.py --server.port 8502
 
 9. PRIVACY NOTE
