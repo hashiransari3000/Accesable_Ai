@@ -56,9 +56,14 @@ ACCESSABLE AI - ARCHITECTURE
       crashing. Speech is user-triggered only; nothing auto-plays.
 
   modules/text_recognition.py
-      Wraps EasyOCR. Loaded on demand only when the user requests text
-      reading. Returns extracted text plus confidence where available,
-      and normalizes empty / failed OCR into explicit states.
+      Wraps EasyOCR (English). Loaded on demand only: the reader is not
+      created until the user presses "Extract text", then cached for the
+      process lifetime. Returns an explicit result state: error
+      (unreadable image / load failure / OCR failure), is_empty (clean
+      run, no text found - not an error), or success (joined text,
+      per-region confidence, processing time). Weights are cached once
+      by EasyOCR in ~/.EasyOCR (outside the repository). Never runs
+      continuously on video frames.
 
   modules/camera.py
       Camera capture helper for the live mode. Deliberate activation

@@ -12,5 +12,10 @@ yolo11n.pt
              by Ultralytics under the same licence terms.
   After the first download, detection works fully offline.
 
-EasyOCR models (Phase 4) will also be cached locally when OCR is first
-used, and are likewise never committed.
+EasyOCR models (Phase 4)
+  Model:     English detection (craft_mlt_25k, ~80 MB) + recognition
+             (english_g2, ~15 MB)
+  Download:  automatic, once, on the first "Extract text" use
+  Location:  ~/.EasyOCR/ (user home cache managed by EasyOCR itself,
+             NOT inside this repository - therefore never committed)
+  After the first download, OCR works fully offline.

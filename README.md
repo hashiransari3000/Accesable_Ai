@@ -23,11 +23,11 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Status
 
-Phase 3 complete: local YOLO detection plus relative-position descriptions
-("appears in the lower center area of the image") and an offline voice
-assistant — speak / stop / replay / rate controls over concise prioritized
-summaries (pyttsx3 + eSpeak NG, fully offline). OCR (Phase 4) is next; see
-`docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt` for test status.
+Phase 4 complete: local OCR text reading (EasyOCR, English, lazy-loaded)
+with a "no text found" state distinct from errors, copy/download support,
+and read-aloud. The app now covers Scene Assistant, Read Text, and offline
+speech; camera (Phase 5) and navigation (Phase 6) are next. See
+`docs/PHASE_LOG.txt` for progress and `docs/TEST_PLAN.txt` for tests.
 
 ## Tech Stack
 

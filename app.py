@@ -20,6 +20,7 @@ from PIL import Image
 
 from modules import announcement_manager as am
 from modules import object_detection as od
+from modules import text_recognition as tr
 from modules import voice_assistant as vas
 from modules.position_analysis import describe_position
 from modules.image_validation import DEFAULT_MAX_BYTES, validate_upload
@@ -50,6 +51,12 @@ SESSION_CLEAR = "scene_confirm_clear"
 SESSION_RESULT = "detection_result"      # od.DetectionResult
 SESSION_RESULT_SRC = "detection_source"  # image bytes the result belongs to
 SESSION_RESULT_CONF = "detection_conf"   # threshold used for that result
+
+OCR_SOURCE = "ocr_image_bytes"
+OCR_NAME = "ocr_image_name"
+OCR_CLEAR = "ocr_confirm_clear"
+OCR_RESULT = "ocr_result"     # tr.TextRecognitionResult
+OCR_RESULT_SRC = "ocr_source"
 
 
 def go(page: str) -> None:
@@ -408,18 +415,166 @@ def _render_speech_controls(result: od.DetectionResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Read Text (Phase 4)
+# Read Text (Phase 4: real local OCR)
 # ---------------------------------------------------------------------------
+def _load_ocr_sample(path: str) -> None:
+    with open(path, "rb") as fh:
+        st.session_state[OCR_SOURCE] = fh.read()
+    st.session_state[OCR_NAME] = path.rsplit("/", 1)[-1]
+    st.session_state.pop(OCR_CLEAR, None)
+    st.rerun()
+
+
+def _clear_ocr_image() -> None:
+    for key in (OCR_SOURCE, OCR_NAME, OCR_CLEAR, OCR_RESULT, OCR_RESULT_SRC):
+        st.session_state.pop(key, None)
+    st.rerun()
+
+
 def render_read_text() -> None:
     components.page_header(
         "Read Text",
         "Extract printed text from an image with local OCR and have it read aloud.",
     )
     components.privacy_notice()
-    components.placeholder_panel("Local OCR text extraction and read-aloud", "Phase 4")
     components.status_banner(
-        "info", "OCR models are not loaded in this build. Nothing to configure yet."
+        "info",
+        "English only for now. The OCR model loads on demand (one-time "
+        "~85 MB download on first use), so this feature costs no memory "
+        "until you use it.",
     )
+
+    uploaded = st.file_uploader(
+        "Upload an image with printed text (JPG or PNG, up to 10 MB)",
+        type=["jpg", "jpeg", "png"],
+        key="ocr_uploader",
+    )
+    if uploaded is not None:
+        error = validate_upload(uploaded.name, uploaded.size)
+        if error is None:
+            data = uploaded.getvalue()
+            error = validate_upload(uploaded.name, uploaded.size, data)
+        if error:
+            components.status_banner("error", error)
+        else:
+            st.session_state[OCR_SOURCE] = data
+            st.session_state[OCR_NAME] = uploaded.name
+
+    st.button("Sample: sign", on_click=_load_ocr_sample, args=(SAMPLE_SIGN,))
+
+    image_bytes = st.session_state.get(OCR_SOURCE)
+    image_name = st.session_state.get(OCR_NAME)
+    if image_bytes is None:
+        components.status_banner(
+            "info", "No image selected yet. Upload a file or pick the sample above."
+        )
+        return
+
+    stale = (
+        st.session_state.get(OCR_RESULT) is not None
+        and st.session_state.get(OCR_RESULT_SRC) != image_bytes
+    )
+    if stale:
+        components.status_banner(
+            "warning",
+            "The image changed since the last extraction. Press "
+            "Extract text again to refresh.",
+        )
+
+    with st.container(border=True):
+        left, right = st.columns([3, 1])
+        with left:
+            st.markdown(f"**Selected image:** `{image_name}`")
+            st.image(Image.open(io.BytesIO(image_bytes)), use_container_width=True)
+        with right:
+            st.markdown("#### Manage")
+            if st.session_state.get(OCR_CLEAR):
+                st.caption("Are you sure? Press confirm to clear.")
+                if st.button("Confirm clear", type="primary"):
+                    _clear_ocr_image()
+            elif st.button("Clear image"):
+                st.session_state[OCR_CLEAR] = True
+                st.rerun()
+
+    st.divider()
+    if st.button("Extract text", type="primary"):
+        first_run = not tr.is_reader_loaded()
+        hint = (
+            "Loading OCR model (one-time ~85 MB download)..."
+            if first_run
+            else "Reading text locally..."
+        )
+        with st.spinner(hint):
+            result = tr.extract_text(image_bytes)
+        st.session_state[OCR_RESULT] = result
+        st.session_state[OCR_RESULT_SRC] = image_bytes
+        st.rerun()
+
+    _render_ocr_results(image_bytes)
+
+
+def _render_ocr_results(current_image_bytes: bytes) -> None:
+    result: tr.TextRecognitionResult | None = st.session_state.get(OCR_RESULT)
+    if result is None or st.session_state.get(OCR_RESULT_SRC) != current_image_bytes:
+        return
+
+    if result.error:
+        components.status_banner("error", result.error)
+        return
+
+    if result.is_empty:
+        # A valid, successful run that found no text - never an error.
+        components.status_banner(
+            "info",
+            "No text found. The image is valid; it may contain handwriting, "
+            "very small print, heavy blur, or no text at all. OCR supports "
+            "English only for now.",
+        )
+        return
+
+    components.status_banner(
+        "success",
+        f"Text extracted ({len(result.regions)} region(s), "
+        f"{result.processing_ms} ms on CPU).",
+    )
+
+    st.subheader("Extracted text")
+    st.markdown(result.text)
+    st.code(result.text, language=None)  # built-in copy button (copy control)
+    st.download_button(
+        "Download text", data=result.text, file_name="extracted_text.txt"
+    )
+
+    avg_conf = sum(r.confidence for r in result.regions) / len(result.regions)
+    st.caption(
+        f"Average model confidence: {avg_conf * 100:.0f}%. Confidence is a "
+        "model score, not a correctness guarantee - please verify important "
+        "text. Handwriting and very low quality images may cause errors."
+    )
+
+    with st.expander("Region details"):
+        for i, region in enumerate(result.regions, 1):
+            st.markdown(f"- Region {i}: **{region.text}** ({region.confidence * 100:.0f}%)")
+
+    # Read-aloud reuses the shared voice assistant (Phase 3 controls)
+    tts_ok = vas.is_available()
+    if not tts_ok:
+        components.status_banner("warning", vas.setup_hint())
+    b1, b2, _ = st.columns([1, 1, 2])
+    if b1.button("Speak text", type="primary", disabled=not tts_ok):
+        if vas.assistant.speak(result.text):
+            st.session_state["ocr_speech_status"] = "Speaking extracted text. Use Stop to interrupt."
+        else:
+            st.session_state["ocr_speech_status"] = "Speech could not start."
+    b2.button("Stop speech", disabled=not tts_ok, key="ocr_stop_speech")
+    if st.session_state.get("ocr_stop_speech"):
+        vas.assistant.stop()
+        st.session_state["ocr_speech_status"] = "Speech stopped."
+    status = st.session_state.get("ocr_speech_status", "")
+    if status:
+        st.caption(status)
+    elif tts_ok:
+        st.caption("Not speaking. Press Speak text to start.")
 
 
 # ---------------------------------------------------------------------------
@@ -481,8 +636,9 @@ def render_settings() -> None:
             "- **Speech:** eSpeak NG detected on this system\n"
             "- **Detection model:** yolo11n nano, CPU inference "
             "(one-time ~5 MB download, then offline)\n"
-            "- **OCR model:** not loaded yet (Phase 4)\n"
-            "- **Network use:** one-time model download only\n"
+            "- **OCR model:** EasyOCR English, loads on first use "
+            "(one-time ~85 MB download, then offline)\n"
+            "- **Network use:** one-time model downloads only\n"
             "- **Data retention:** none"
         )
 

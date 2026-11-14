@@ -19,7 +19,7 @@ ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
 pyttsx3==2.99               # requires the espeak-ng system package on Linux
 
 # OCR, lazy-loaded at runtime (Phase 4)
-# easyocr
+easyocr==1.7.2              # pulls scipy, scikit-image, shapely, pyclipper
 
 # Graph visualization/validation only (algorithms are hand-written) (Phase 6)
 # networkx
