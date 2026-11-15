@@ -14,31 +14,33 @@ applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
 
 ## Features
 
-- **Scene Assistant** — upload an image or use the controlled live camera;
+- **Scene Assistant** — choose **Image upload** or **Live camera** mode;
   detect common objects with a small pretrained YOLO model (CPU), see
   confidence values and an annotated preview, and get cautious
   relative-position descriptions ("appears in the lower center area of the
   image").
 - **Read Text** — extract printed text from images with local OCR
-  (English), with copy/download and a speak-aloud option.
+  (English), with faithful copy/download and a speak-aloud option.
 - **Voice feedback** — offline text-to-speech (pyttsx3 + eSpeak NG) with
-  speak / stop / replay / rate controls and a visual text equivalent.
+  speak / stop / replay / shared rate control and a visual text equivalent.
 - **Indoor Navigation Demo** — hand-written BFS and A* shortest-path
-  algorithms on a clearly fictional sample building map, with a BFS-vs-A*
-  comparison (cost, hops, nodes explored, timing) and simulation-only
-  wording.
+  algorithms on a clearly fictional sample building map, with a drawn
+  route map, step-by-step distances, and a BFS-vs-A* comparison (cost,
+  hops, nodes explored, timing, side-by-side maps).
 - **Privacy by default** — all processing is local; no cloud APIs, no
-  telemetry, no data retention.
+  telemetry (Streamlit usage stats disabled), no data retention.
 
 ## Status
 
-**Release (Phase 8) complete.** All 9 phases (0–8) built, tested, and
-documented: image upload, local YOLO detection, relative positions,
-offline speech, local OCR read-aloud, controlled live camera, and the
-BFS/A* navigation demo. **81/81 tests pass, verified from a clean
-virtual environment install** (exact steps in `docs/SETUP_GUIDE.txt`);
-ruff lint clean. Full history in `docs/PHASE_LOG.txt`, final results in
-`docs/TEST_PLAN.txt`.
+**Release (Phase 8) complete + post-release enhancement pass.** All 9
+phases (0–8) built, tested, and documented: image upload, local YOLO
+detection, relative positions, offline speech, local OCR read-aloud,
+controlled live camera, and the BFS/A* navigation demo. The enhanced
+build adds a mode-switched Scene Assistant, a single shared voice-rate
+control, matplotlib route maps, uploader/clear-flow fixes, and theme
+coherence. **81/81 tests pass, verified from a clean virtual environment
+install** (exact steps in `docs/SETUP_GUIDE.txt`); ruff lint clean. Full
+history in `docs/PHASE_LOG.txt`, final results in `docs/TEST_PLAN.txt`.
 
 ## Screenshots
 

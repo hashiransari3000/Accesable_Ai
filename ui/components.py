@@ -55,33 +55,36 @@ def page_header(title: str, description: str) -> None:
 def status_banner(kind: str, message: str) -> None:
     """Show a status message. kind: success | warning | error | info.
 
-    Streamlit banners include their own icons/text, so state is never
-    communicated by colour alone.
+    Streamlit banners ship their own icon, so state is never communicated
+    by colour alone.
     """
     if kind == "success":
-        st.success(message, icon="✅")
+        st.success(message)
     elif kind == "warning":
-        st.warning(message, icon="⚠️")
+        st.warning(message)
     elif kind == "error":
-        st.error(message, icon="⛔")
+        st.error(message)
     else:
-        st.info(message, icon="ℹ️")
+        st.info(message)
 
 
 def safety_notice() -> None:
     """The mandatory visible disclaimer, shown on Dashboard + Navigation."""
     st.warning(
         "**Educational prototype only.** AI may miss or misidentify objects. "
-        "Do not rely on this app for safe mobility or obstacle avoidance.",
-        icon="⚠️",
+        "Do not rely on this app for safe mobility or obstacle avoidance."
     )
 
 
 def privacy_notice() -> None:
     """Short, always-visible privacy statement."""
-    st.caption(
-        "🔒 Privacy: your image is processed locally on this machine. "
-        "Nothing is uploaded, stored, or transmitted."
+    st.markdown(
+        '<div class="aa-muted" style="display:flex;gap:7px;align-items:center;">'
+        f'{svg_icon("shield", colour="#0F766E", size=15)}'
+        "<span><strong>Privacy:</strong> your image is processed locally on "
+        "this machine. Nothing is uploaded, stored, or transmitted.</span>"
+        "</div>",
+        unsafe_allow_html=True,
     )
 
 
@@ -111,13 +114,6 @@ def quick_start_steps() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-
-
-def placeholder_panel(feature: str, phase: str) -> None:
-    """Honest placeholder for features not yet implemented."""
-    with st.container(border=True):
-        st.markdown(f"**{feature}**")
-        st.caption(f"Under construction — arrives in {phase}.")
 
 
 def status_pill(label: str, value: str, ready: bool) -> None:

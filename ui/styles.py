@@ -105,10 +105,35 @@ def inject_global_css() -> None:
         section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {{
             background: {ACCENT_STRONG};
             border-color: #134E4A;
+            border-left: 3px solid #5EEAD4;
         }}
         section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) * {{
             color: #FFFFFF;
             font-weight: 700;
+        }}
+
+        /* ---------- Page-level choice groups (mode / algorithm) ---------- */
+        section[data-testid="stMain"] div[role="radiogroup"] {{
+            gap: 8px;
+        }}
+        section[data-testid="stMain"] div[role="radiogroup"] label {{
+            background: {SURFACE};
+            border: 1px solid {BORDER};
+            border-radius: 999px;
+            padding: 6px 16px;
+            cursor: pointer;
+            transition: background-color 160ms ease, border-color 160ms ease;
+        }}
+        section[data-testid="stMain"] div[role="radiogroup"] label:hover {{
+            border-color: {ACCENT};
+        }}
+        section[data-testid="stMain"] div[role="radiogroup"] label:has(input:checked) {{
+            background: {ACCENT_SOFT};
+            border-color: {ACCENT_BORDER};
+        }}
+        section[data-testid="stMain"] div[role="radiogroup"] label:has(input:checked) p {{
+            font-weight: 700;
+            color: {ACCENT_STRONG};
         }}
 
         /* ---------- Focus visibility (WCAG 2.2) ---------- */
@@ -189,6 +214,36 @@ def inject_global_css() -> None:
             border: 1px solid {BORDER};
             border-radius: {RADIUS};
             overflow: hidden;
+        }}
+
+        /* ---------- File uploader ---------- */
+        [data-testid="stFileUploaderDropzone"] {{
+            background: {SURFACE};
+            border: 1.5px dashed #94A3B8;
+            border-radius: {RADIUS};
+            padding: 1.1rem 1.2rem;
+            transition: border-color 160ms ease, background-color 160ms ease;
+        }}
+        [data-testid="stFileUploaderDropzone"]:hover {{
+            border-color: {ACCENT};
+            background: {ACCENT_SOFT};
+        }}
+        [data-testid="stFileUploaderDropzone"] button {{
+            border-radius: 10px;
+        }}
+
+        /* ---------- Alerts / expanders ---------- */
+        [data-testid="stAlert"] {{
+            border-radius: 10px;
+        }}
+        [data-testid="stExpander"] details {{
+            background: {SURFACE};
+            border: 1px solid {BORDER};
+            border-radius: 10px;
+            overflow: hidden;
+        }}
+        [data-testid="stExpander"] summary {{
+            font-weight: 600;
         }}
 
         /* ---------- Code / copy block ---------- */

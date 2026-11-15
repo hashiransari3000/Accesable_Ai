@@ -23,6 +23,7 @@ easyocr==1.7.2              # pulls scipy, scikit-image, shapely, pyclipper
 
 # Graph visualization/validation only (algorithms are hand-written) (Phase 6)
 # networkx
+matplotlib==3.11.2          # route-map rendering for the navigation demo
 
 # Testing
 pytest==9.2.0
