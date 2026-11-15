@@ -83,10 +83,9 @@ def _uploader_key(base: str, epoch_key: str) -> str:
     return f"{base}_{st.session_state.get(epoch_key, 0)}"
 
 
-def go(page: str) -> None:
-    """Programmatic navigation helper (used by dashboard shortcuts)."""
+def _navigate(page: str) -> None:
+    """Navigation callback (on_click runs before widgets are instantiated)."""
     st.session_state["page"] = page
-    st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +184,12 @@ def render_dashboard() -> None:
     with p3:
         components.status_pill("Privacy", "fully local", True)
 
-    if st.button("Open Scene Assistant", type="primary"):
-        go("Scene Assistant")
+    st.button(
+        "Open Scene Assistant",
+        type="primary",
+        on_click=_navigate,
+        args=("Scene Assistant",),
+    )
 
 
 # ---------------------------------------------------------------------------
