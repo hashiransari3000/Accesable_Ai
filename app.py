@@ -659,7 +659,7 @@ def _render_camera_results() -> None:
             "No objects detected in this snapshot. The model recognizes only "
             "its training classes (80 COCO classes).",
         )
-    _render_speech_controls(result, prefix="camera", heading="Spoken snapshot summary")
+    _render_speech_controls(result, prefix="snapshot", heading="Spoken snapshot summary")
 
 
 # ---------------------------------------------------------------------------
