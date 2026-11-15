@@ -4,6 +4,11 @@ An offline-first accessibility assistant **prototype**: understand a scene
 through object detection, read visible text with OCR, hear concise spoken
 summaries, and explore indoor route planning on a sample map.
 
+The interface uses the **Atkinson Hyperlegible** typeface (Braille
+Institute), a contrast-checked calm palette, a dark sidebar shell, and
+3px focus rings — designed against WCAG 2.2 AA principles with HCI rules
+applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
+
 > **Educational prototype only. AI may miss or misidentify objects.
 > Do not rely on this app for safe mobility or obstacle avoidance.**
 

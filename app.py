@@ -79,8 +79,12 @@ def go(page: str) -> None:
 # ---------------------------------------------------------------------------
 def render_sidebar() -> str:
     with st.sidebar:
-        st.markdown("## AccessAble AI")
-        st.caption("Offline-first visual assistant prototype")
+        st.markdown(
+            '<div class="aa-appname">AccessAble AI</div>'
+            '<div class="aa-apptag">Offline visual assistant prototype</div>',
+            unsafe_allow_html=True,
+        )
+        st.divider()
         page = st.radio(
             "Navigation",
             PAGES,
@@ -88,7 +92,10 @@ def render_sidebar() -> str:
             label_visibility="collapsed",
         )
         st.divider()
-        st.caption("🔒 All processing stays on this machine.")
+        st.markdown(
+            '<div class="aa-apptag">🔒 All processing stays on this machine.</div>',
+            unsafe_allow_html=True,
+        )
     return page
 
 
@@ -109,47 +116,46 @@ def render_dashboard() -> None:
     c1, c2 = st.columns(2)
     with c1:
         components.feature_card(
-            "🖼️",
+            "eye",
             "Scene Assistant",
             "Upload an image to detect common objects with a small pretrained "
             "YOLO model running on your CPU, with confidence values and "
             "relative-position descriptions.",
         )
         components.feature_card(
-            "🔤",
+            "text",
             "Read Text",
             "Extract printed text from an image with local OCR and have it "
             "spoken aloud. Loads only when you request it.",
         )
     with c2:
         components.feature_card(
-            "🔊",
+            "speaker",
             "Voice feedback",
             "Concise spoken summaries using offline text-to-speech, with "
             "speak, stop, replay, and rate controls. A visual text version "
             "is always provided.",
         )
         components.feature_card(
-            "🧭",
+            "map",
             "Indoor Navigation Demo",
             "A clearly fictional sample map used to demonstrate BFS and A* "
             "route planning. Simulation only - never live guidance.",
         )
 
     st.subheader("System readiness")
-    r1, r2, r3 = st.columns(3)
-    with r1:
-        st.metric("Python", "3.14", help="Local runtime")
-    with r2:
-        st.metric("Speech engine", "eSpeak NG", help="Offline TTS backend")
-    with r3:
-        st.metric(
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        components.status_pill(
             "Detection model",
-            "yolo11n (cached)" if od.is_model_loaded() else "loads on first use",
-            help="Nano YOLO on CPU; first use downloads ~5 MB once, then offline.",
+            "cached" if od.is_model_loaded() else "loads on first use",
+            od.is_model_loaded(),
         )
+    with p2:
+        components.status_pill("Speech engine", "eSpeak NG", vas.is_available())
+    with p3:
+        components.status_pill("Privacy", "fully local", True)
 
-    components.privacy_notice()
     if st.button("Open Scene Assistant", type="primary"):
         go("Scene Assistant")
 
