@@ -22,6 +22,9 @@ models/*.onnx
 # EasyOCR local cache if pointed inside repo
 easyocr_cache/
 
+# Ultralytics CLIP text-encoder cache for YOLO-World (runtime download)
+weights/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

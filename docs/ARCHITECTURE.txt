@@ -31,6 +31,31 @@ ACCESSABLE AI - ARCHITECTURE
       models/yolo11n.pt on first use, then work offline. Knows nothing
       about the UI.
 
+  modules/open_vocabulary.py
+      Wraps YOLO-World (yolov8s-worldv2, ~25 MB, AGPL-3.0) for text-prompt
+      detection of accessible-navigation classes (door, stairs, ramp,
+      elevator, handrail, ...). Parses/dedupes prompts (max 30), applies
+      set_classes only when the prompt set changes, and reuses the
+      detection dataclasses and annotation helper. Scores run lower than
+      fixed-class YOLO; failures are returned in result.error while the
+      app stays usable. Weights download once to models/.
+
+  modules/depth_estimation.py
+      Optional relative proximity. Lazy-loads Depth Anything V2 Small via
+      transformers (CPU, ~100 MB one-time download), interpolates the
+      predicted depth to image size, and maps each detection's mean
+      normalized depth to a band (very close / close / mid-distance /
+      far). Explicitly relative within one image - never metres. A
+      failure returns a warning string and never discards detections.
+
+  modules/scene_tracker.py
+      Pure change-detection engine for camera auto-briefing. Detections
+      are keyed by label + coarse 3x3 screen position. New objects are
+      confirmed after N consecutive observations; gone objects are
+      reported after N consecutive misses; unconfirmed flashes are
+      ignored. Produces a ChangeReport whose summary is both spoken and
+      rendered as text.
+
   modules/position_analysis.py
       Pure functions. Maps a bounding box to coarse screen-relative
       position: horizontal (left / center / right) and vertical
@@ -74,8 +99,9 @@ ACCESSABLE AI - ARCHITECTURE
       deliberate user action; the app never starts the camera on load.
       A background daemon thread grabs frames at a modest target FPS
       (15) and keeps only the latest frame. Capture rate is fully
-      decoupled from inference: detection runs per user-triggered
-      snapshot only, and OCR never runs on camera frames. stop() is
+      decoupled from inference: detection runs on user-triggered
+      snapshots and (if enabled) the auto-briefing cadence only, and OCR
+      never runs on camera frames. stop() is
       idempotent and releases the device; the UI also stops the camera
       on page change. No-device, permission-denied, and device-lost
       paths produce readable fallback messages pointing to image upload.

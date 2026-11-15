@@ -15,6 +15,14 @@ pillow==13.0.0
 opencv-python==5.0.0.93
 ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
 
+# Open-vocabulary detection (Phase 9)
+# YOLO-World reuses ultralytics; CLIP tokenization needs ftfy + regex
+ftfy==6.3.1
+regex==2026.11.9
+
+# Relative depth estimation, lazy-loaded at runtime (Phase 9)
+transformers==5.23.0        # pulls tokenizers/safetensors; model ~100 MB
+
 # Offline speech (Phase 3)
 pyttsx3==2.99               # requires the espeak-ng system package on Linux
 

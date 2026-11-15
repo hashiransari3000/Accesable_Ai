@@ -20,7 +20,10 @@ from PIL import Image
 
 from modules import announcement_manager as am
 from modules import camera as cam_mod
+from modules import depth_estimation as depth_mod
 from modules import object_detection as od
+from modules import open_vocabulary as ov
+from modules import scene_tracker as tracker
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
 from modules.image_validation import validate_upload
@@ -36,7 +39,7 @@ st.set_page_config(
 )
 styles.inject_global_css()
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 PAGES = [
     "Dashboard",
@@ -55,6 +58,8 @@ SESSION_CLEAR = "scene_confirm_clear"
 SESSION_RESULT = "detection_result"      # od.DetectionResult
 SESSION_RESULT_SRC = "detection_source"  # image bytes the result belongs to
 SESSION_RESULT_CONF = "detection_conf"   # threshold used for that result
+SESSION_RESULT_OPTS = "detection_opts"   # (model kind, vocabulary) of result
+DEPTH_ERROR = "depth_error"
 SESSION_UPLOAD_EPOCH = "scene_upload_epoch"
 SESSION_UPLOAD_FP = "scene_upload_fingerprint"
 
@@ -70,6 +75,11 @@ CAMERA = "camera_instance"        # cam_mod.CameraCapture
 CAMERA_AUTO = "camera_auto_preview"
 CAMERA_SNAPSHOT = "camera_snapshot_bytes"
 CAMERA_RESULT = "camera_result"   # od.DetectionResult for the snapshot
+CAMERA_BRIEF = "camera_auto_brief"
+CAMERA_BRIEF_INTERVAL = "brief_interval"
+CAMERA_BRIEF_SPEAK = "brief_speak"
+BRIEF_LOG = "brief_log"           # list[str], newest first
+BRIEF_MEMORY = "brief_memory"     # (camera instance, tracker.SceneMemory)
 LAST_PAGE = "last_active_page"
 
 
@@ -139,9 +149,9 @@ def render_dashboard() -> None:
         components.feature_card(
             "eye",
             "Scene Assistant",
-            "Upload an image to detect common objects with a small pretrained "
-            "YOLO model running on your CPU, with confidence values and "
-            "relative-position descriptions.",
+            "Upload an image or use a live camera to detect common objects, "
+            "search for custom items (door, stairs, ramp) with open-vocabulary "
+            "detection, and optionally estimate relative proximity.",
         )
         components.feature_card(
             "text",
@@ -283,11 +293,26 @@ def _render_upload_mode() -> None:
         )
         return
 
-    # Stale-result guard: if the image changed since the last analysis,
-    # old results must not be presented as current (reduce memory load).
-    stale = (
-        st.session_state.get(SESSION_RESULT) is not None
-        and st.session_state.get(SESSION_RESULT_SRC) != image_bytes
+    # Stale-result guard: if the image or detection settings changed since
+    # the last analysis, old results must not be presented as current.
+    saved_opts = st.session_state.get(SESSION_RESULT_OPTS)
+    model_choice = st.session_state.get(
+        "detection_model", "Standard (80 everyday objects)"
+    )
+    if str(model_choice).startswith("Open"):
+        opts_now = (
+            "open",
+            tuple(
+                ov.parse_vocabulary(
+                    st.session_state.get("world_vocabulary", ov.DEFAULT_VOCABULARY)
+                )
+            ),
+        )
+    else:
+        opts_now = ("standard", ())
+    stale = st.session_state.get(SESSION_RESULT) is not None and (
+        st.session_state.get(SESSION_RESULT_SRC) != image_bytes
+        or saved_opts != opts_now
     )
 
     with st.container(border=True):
@@ -312,40 +337,133 @@ def _render_upload_mode() -> None:
     if stale:
         components.status_banner(
             "warning",
-            "The image changed since the last analysis. Press "
-            "Analyze image again to refresh the results.",
+            "The image or detection settings changed since the last "
+            "analysis. Press Analyze image again to refresh the results.",
         )
 
-    # -- Analyze (real local YOLO inference, Phase 2) -------------------------
+    # -- Detection settings (standard vs open vocabulary + depth) -------------
     st.divider()
-    conf_threshold = st.slider(
-        "Detection confidence threshold",
-        min_value=0.05,
-        max_value=0.95,
-        value=0.40,
-        step=0.05,
-        format="%.2f",
-        key="conf_threshold",
-        help=(
-            "Minimum model score for a detection to be shown. Confidence is "
-            "a model score, not a probability of safety."
-        ),
+    st.markdown("#### Detection settings")
+    model_label = st.radio(
+        "Detection model",
+        [
+            "Standard (80 everyday objects)",
+            "Open vocabulary (describe what to find)",
+        ],
+        horizontal=True,
+        key="detection_model",
+        help="The standard model is fast and reliable for its 80 classes. "
+        "Open vocabulary can look for doors, stairs, ramps, and more - with "
+        "less reliable results.",
+    )
+    use_open_vocab = model_label.startswith("Open")
+
+    vocabulary_text = ""
+    if use_open_vocab:
+        vocabulary_text = st.text_area(
+            "Objects to look for (comma-separated, up to 30)",
+            value=st.session_state.get("world_vocabulary", ov.DEFAULT_VOCABULARY),
+            key="world_vocabulary",
+            height=100,
+            help="YOLO-World downloads once (~380 MB: model + CLIP text "
+            "encoder) then runs offline. Scores tend to be lower than the "
+            "standard model.",
+        )
+        st.caption(
+            "Tip: open-vocabulary scores run lower - try a threshold around "
+            "0.15-0.25. Unusual phrases may produce false positives."
+        )
+
+    use_depth = st.checkbox(
+        "Estimate relative proximity (depth)",
+        key="use_depth",
+        help="Adds near/far bands within this image only (one-time ~100 MB "
+        "download). Relative, not metres - never a safety signal.",
+    )
+
+    if use_open_vocab:
+        conf_threshold = st.slider(
+            "Open-vocabulary confidence threshold",
+            min_value=0.02,
+            max_value=0.60,
+            value=0.10,
+            step=0.01,
+            format="%.2f",
+            key="world_conf",
+            help=(
+                "Open-vocabulary scores run lower than the standard model. "
+                "Confidence is a model score, not a probability of safety."
+            ),
+        )
+    else:
+        conf_threshold = st.slider(
+            "Detection confidence threshold",
+            min_value=0.05,
+            max_value=0.95,
+            value=0.40,
+            step=0.05,
+            format="%.2f",
+            key="conf_threshold",
+            help=(
+                "Minimum model score for a detection to be shown. Confidence "
+                "is a model score, not a probability of safety."
+            ),
+        )
+
+    current_opts = (
+        "open" if use_open_vocab else "standard",
+        tuple(ov.parse_vocabulary(vocabulary_text)) if use_open_vocab else (),
     )
 
     if st.button("Analyze image", type="primary"):
-        first_run = not od.is_model_loaded()
-        hint = (
-            "Loading model (one-time ~5 MB download)..." if first_run
-            else "Detecting objects locally..."
-        )
-        with st.spinner(hint):
-            result = od.analyze_image(image_bytes, confidence_threshold=conf_threshold)
-        st.session_state[SESSION_RESULT] = result
-        st.session_state[SESSION_RESULT_SRC] = image_bytes
-        st.session_state[SESSION_RESULT_CONF] = conf_threshold
-        st.rerun()
+        classes = list(current_opts[1])
+        if use_open_vocab and not classes:
+            components.status_banner(
+                "error",
+                "Add at least one object name to look for (for example: door, "
+                "stairs, ramp).",
+            )
+        else:
+            if use_open_vocab:
+                first_run = not ov.is_model_loaded()
+                hint = (
+                    "Loading open-vocabulary model (one-time ~380 MB "
+                    "download)..." if first_run
+                    else "Searching for your objects locally..."
+                )
+            else:
+                first_run = not od.is_model_loaded()
+                hint = (
+                    "Loading model (one-time ~5 MB download)..." if first_run
+                    else "Detecting objects locally..."
+                )
+            with st.spinner(hint):
+                if use_open_vocab:
+                    result = ov.analyze_image(
+                        image_bytes, classes, confidence_threshold=conf_threshold
+                    )
+                else:
+                    result = od.analyze_image(
+                        image_bytes, confidence_threshold=conf_threshold
+                    )
+                st.session_state.pop(DEPTH_ERROR, None)
+                if use_depth and result.detections and not result.error:
+                    depth_hint = (
+                        "Loading depth model (one-time ~100 MB download)..."
+                        if not depth_mod.is_loaded()
+                        else "Estimating relative proximity..."
+                    )
+                    with st.spinner(depth_hint):
+                        depth_error = depth_mod.annotate_result(result, image_bytes)
+                    if depth_error:
+                        st.session_state[DEPTH_ERROR] = depth_error
+            st.session_state[SESSION_RESULT] = result
+            st.session_state[SESSION_RESULT_SRC] = image_bytes
+            st.session_state[SESSION_RESULT_CONF] = conf_threshold
+            st.session_state[SESSION_RESULT_OPTS] = current_opts
+            st.rerun()
 
-    _render_detection_results(image_bytes)
+    _render_detection_results(image_bytes, current_opts)
 
 
 def _render_voice_settings() -> bool:
@@ -369,11 +487,15 @@ def _render_voice_settings() -> bool:
     return tts_ok
 
 
-def _render_detection_results(current_image_bytes: bytes) -> None:
+def _render_detection_results(
+    current_image_bytes: bytes, current_opts: tuple
+) -> None:
     """Render the stored analysis result with all required states."""
     result: od.DetectionResult | None = st.session_state.get(SESSION_RESULT)
     if result is None or st.session_state.get(SESSION_RESULT_SRC) != current_image_bytes:
         return  # no result yet, or results belong to a previous image
+    if st.session_state.get(SESSION_RESULT_OPTS) != current_opts:
+        return  # settings changed; old results are stale and hidden
 
     conf_used = st.session_state.get(SESSION_RESULT_CONF, od.DEFAULT_CONFIDENCE)
 
@@ -382,18 +504,27 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
         if not result.detections:
             return
 
+    depth_error = st.session_state.get(DEPTH_ERROR)
+    if depth_error:
+        components.status_banner("warning", depth_error)
+
     if result.detections:
-        components.status_banner(
-            "success",
-            f"{len(result.detections)} object(s) detected "
-            f"(threshold {conf_used:.2f}, inference {result.inference_ms} ms on CPU).",
+        banner = (
+            f"{len(result.detections)} object(s) detected by "
+            f"{result.model_name} (threshold {conf_used:.2f}, "
+            f"inference {result.inference_ms} ms on CPU"
         )
+        if result.depth_ms:
+            banner += f", depth {result.depth_ms} ms"
+        banner += ")."
+        components.status_banner("success", banner)
     else:
         components.status_banner(
             "info",
             f"No objects detected above the threshold {conf_used:.2f}. "
-            "Try lowering the threshold or using a clearer image. Note: the "
-            "model recognizes only its training classes (80 COCO classes).",
+            "Try lowering the threshold or using a clearer image. The "
+            "standard model recognizes only its 80 COCO classes; the "
+            "open-vocabulary model depends on your prompt wording.",
         )
 
     # Annotated preview with a hide-overlay option (avoid clutter, spec 3.1)
@@ -411,24 +542,34 @@ def _render_detection_results(current_image_bytes: bytes) -> None:
 
     # Structured detection list, now with relative position (Phase 3)
     if result.detections:
+        has_proximity = any(d.proximity for d in result.detections)
         st.subheader("Detected objects")
-        rows = [
-            {
+        rows = []
+        for d in result.detections:
+            row = {
                 "Object": d.label.replace("_", " "),
                 "Confidence": f"{d.confidence * 100:.0f}%",
                 "Position in image": describe_position(
                     d, result.image_size[0], result.image_size[1]
                 ).replace("appears on the ", "").replace(" side of the image", ""),
-                "Bounding box (x1, y1, x2, y2)": str(d.bbox),
             }
-            for d in result.detections
-        ]
+            if has_proximity:
+                row["Proximity (relative)"] = d.proximity or "n/a"
+            row["Bounding box (x1, y1, x2, y2)"] = str(d.bbox)
+            rows.append(row)
         st.dataframe(rows, width="stretch", hide_index=True)
-        st.caption(
+        caption = (
             "Confidence is the model's score for this image region - not a "
             "probability of safety. Position describes the uploaded image "
-            "only, never your physical surroundings or distances."
+            "only, never your physical surroundings."
         )
+        if has_proximity:
+            caption += (
+                " Proximity bands come from monocular depth and are relative "
+                "within this single image - never metres, and never a safety "
+                "signal."
+            )
+        st.caption(caption)
     else:
         st.caption(
             "Tip: lower the threshold above and analyze again. The pretrained "
@@ -514,12 +655,22 @@ def _stop_camera() -> None:
     st.session_state.pop(CAMERA, None)
     st.session_state.pop(CAMERA_SNAPSHOT, None)
     st.session_state.pop(CAMERA_RESULT, None)
+    st.session_state.pop(BRIEF_MEMORY, None)
 
 
 def _encode_frame_png(frame) -> bytes | None:
     import cv2
 
     ok, buf = cv2.imencode(".png", frame)
+    return buf.tobytes() if ok else None
+
+
+def _encode_frame_jpeg(frame, quality: int = 85) -> bytes | None:
+    import cv2
+
+    ok, buf = cv2.imencode(
+        ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    )
     return buf.tobytes() if ok else None
 
 
@@ -564,8 +715,8 @@ def render_camera_section() -> None:
         "Live preview",
         value=True,
         key=CAMERA_AUTO,
-        help="Continuously refreshes the preview. Inference still runs only "
-        "when you press Capture & analyze.",
+        help="Continuously refreshes the preview. Inference runs only on "
+        "Capture & analyze, or at the auto-briefing interval below.",
     )
     interval = 0.25
     if auto:
@@ -633,6 +784,93 @@ def render_camera_section() -> None:
             st.rerun()
 
     _render_camera_results()
+
+    # -- Auto-briefing (announce only changes, never every frame) ------------
+    st.divider()
+    st.subheader("Auto-briefing")
+    st.caption(
+        "Runs detection on the live preview at a set cadence and announces "
+        "only objects that appear or clear. Every announcement is also "
+        "shown as text below (audio is never the only channel)."
+    )
+    brief_on = st.checkbox(
+        "Auto-briefing (announce changes)",
+        key=CAMERA_BRIEF,
+        help="New objects are confirmed over consecutive updates before "
+        "being announced, so one-frame flicker is ignored.",
+    )
+    brief_interval = st.slider(
+        "Briefing interval (seconds)", 1.0, 5.0, 2.5, 0.5,
+        key=CAMERA_BRIEF_INTERVAL,
+        disabled=not brief_on,
+        help="How often detection runs on the latest frame. Shorter is more "
+        "responsive but uses more CPU.",
+    )
+    speak_brief = st.checkbox(
+        "Speak announcements",
+        value=True,
+        key=CAMERA_BRIEF_SPEAK,
+        disabled=not brief_on or not vas.is_available(),
+    )
+    clear_pressed = st.button(
+        "Clear briefing log", key="brief_clear", disabled=not brief_on,
+    )
+    if clear_pressed:
+        st.session_state[BRIEF_LOG] = []
+        st.session_state.pop(BRIEF_MEMORY, None)
+        st.rerun()
+
+    @st.fragment(run_every=brief_interval if brief_on else None)
+    def _auto_brief() -> None:
+        if not cam_inst.is_active():
+            return
+        frame = cam_inst.get_frame()
+        if frame is None:
+            st.caption("Waiting for the first frame...")
+            return
+        encoded = _encode_frame_jpeg(frame)
+        if encoded is None:
+            return
+        brief_result = od.analyze_image(
+            encoded, confidence_threshold=threshold
+        )
+        if brief_result.error and not brief_result.detections:
+            st.caption(f"Auto-briefing paused: {brief_result.error}")
+            return
+
+        state = st.session_state.get(BRIEF_MEMORY)
+        if not (isinstance(state, tuple) and state[0] is cam_inst):
+            state = (cam_inst, tracker.SceneMemory())
+            st.session_state[BRIEF_MEMORY] = state
+        memory = state[1]
+        report = memory.update(
+            brief_result.detections,
+            brief_result.image_size[0],
+            brief_result.image_size[1],
+        )
+        if report.has_changes:
+            log = list(st.session_state.get(BRIEF_LOG, []))
+            log.insert(0, report.summary)
+            st.session_state[BRIEF_LOG] = log[:8]
+            if speak_brief and vas.is_available():
+                vas.assistant.speak(report.summary)
+
+        log = st.session_state.get(BRIEF_LOG, [])
+        if log:
+            st.markdown("**Recent announcements**")
+            for line in log[:5]:
+                st.caption(line)
+        else:
+            st.caption(
+                "Listening for changes - confirmed new objects appear here."
+            )
+        st.caption(
+            f"Currently {len(brief_result.detections)} object(s) visible "
+            f"(threshold {threshold:.2f}); changes only are announced."
+        )
+
+    if brief_on:
+        _auto_brief()
 
 
 def _render_camera_results() -> None:
@@ -1072,7 +1310,8 @@ def render_settings() -> None:
     current_conf = st.session_state.get("conf_threshold", od.DEFAULT_CONFIDENCE)
     st.caption(
         f"Detection confidence threshold: currently **{current_conf:.2f}** - "
-        "change it on the Scene Assistant page (Image upload mode)."
+        "change it on the Scene Assistant page (Image upload mode). "
+        "Open-vocabulary mode keeps its own lower threshold."
     )
 
     st.subheader("Model / device status")
@@ -1080,8 +1319,10 @@ def render_settings() -> None:
     with d1:
         st.markdown(
             "- **Device:** CPU only (GPU optional, not required)\n"
-            "- **Detection model:** yolo11n nano (Ultralytics, AGPL-3.0), "
-            "cached locally after first use\n"
+            "- **Detection models:** yolo11n (80 classes) and YOLO-World "
+            "(open vocabulary), Ultralytics, AGPL-3.0; cached locally after "
+            "first use\n"
+            "- **Depth model:** Depth Anything V2 Small (relative bands only)\n"
             "- **Speech:** eSpeak NG offline text-to-speech\n"
             "- **Navigation:** hand-written BFS and A* on a fixed sample map"
         )
@@ -1105,7 +1346,10 @@ def render_settings() -> None:
     st.subheader("Known limitations")
     st.markdown(
         "- Educational prototype only; not a mobility or safety device.\n"
-        "- Detection recognizes only classes in the model's training labels.\n"
+        "- Detection recognizes only classes in the model's training labels; "
+        "open-vocabulary prompts may miss objects or produce false positives.\n"
+        "- Proximity bands are relative within one image, never metres, and "
+        "must not be used to judge real-world distance or safety.\n"
         "- Image position is not physical distance; depth is out of scope.\n"
         "- OCR supports English only (until other languages are tested).\n"
         "- The navigation demo uses a fixed fictional map."

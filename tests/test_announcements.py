@@ -96,3 +96,12 @@ def test_reset_clears_cooldowns():
     g.reset()
     announced, _ = g.filter_new(["person"], now=1.0)
     assert announced == ["person"]
+
+
+def test_summary_uses_relative_proximity_word():
+    det = _d("chair", 0.8)
+    det.proximity = "close"
+    s = summarize([det], W, H)
+    assert "close" in s.phrases[0]
+    for banned in ("meters", "metres", "safe", "collision", "distance"):
+        assert banned not in s.phrases[0]

@@ -45,8 +45,12 @@ class Summary:
 
 def _phrase_for(det: Detection, width: int, height: int) -> str:
     position = describe_position(det, width, height, include_vertical=True)
+    position = position.replace("appears in the ", "")
     label = det.label.replace("_", " ")
-    return f"A {label} appears in the {position.replace('appears in the ', '')}."
+    if det.proximity:
+        lead = "at mid-distance" if det.proximity == "mid-distance" else det.proximity
+        return f"A {label} appears {lead} in the {position}."
+    return f"A {label} appears in the {position}."
 
 
 def prioritize(

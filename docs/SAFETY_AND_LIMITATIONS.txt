@@ -16,24 +16,43 @@ Do not rely on this app for safe mobility or obstacle avoidance."
 
 2. OBJECT DETECTION LIMITATIONS
 -------------------------------
-  - The pretrained YOLO model recognizes only the classes in its training
-    labels; it cannot detect everything.
+  - The standard pretrained YOLO model recognizes only the classes in its
+    training labels (80 COCO classes); it cannot detect everything.
+  - The optional open-vocabulary model (YOLO-World) accepts text prompts
+    such as "door" or "stairs", but it is LESS reliable than fixed-class
+    YOLO: scores are much lower, and unusual or abstract prompts may
+    produce false positives or nothing at all. A prompt result is a
+    model suggestion, never a confirmation that an object is present.
   - It can miss objects, misclassify objects, lag behind reality, or
     produce false detections.
   - Confidence is a model score, NOT a probability of safety.
   - Announcements describe the analyzed frame/image only. They are
     observations, not facts about the entire environment.
   - A 2D image does not provide reliable physical distance, obstacle
-    height, floor drop-off, or collision risk. Distance estimation is
-    intentionally out of scope.
+    height, floor drop-off, or collision risk. Metric distance estimation
+    is out of scope; the optional proximity bands are explicitly relative
+    (see section 3).
 
-3. POSITION ESTIMATION LIMITATIONS
+3. RELATIVE PROXIMITY (DEPTH) LIMITATIONS
+-----------------------------------------
+  - Optional proximity bands ("very close" ... "far") come from a
+    monocular depth model (Depth Anything V2 Small). They order objects
+    WITHIN one image only.
+  - They are NOT metres, NOT calibrated, and NOT comparable across
+    images, cameras, or moments in time.
+  - Reflections, glass, very low light, unusual viewpoints, and flat
+    surfaces can invert or flatten the estimate.
+  - A "far" band never means "clear path"; a "very close" band never
+    means "about to collide". Never use bands for obstacle avoidance.
+  - If depth fails, object detections remain valid and a warning says so.
+
+4. POSITION ESTIMATION LIMITATIONS
 ----------------------------------
   - "Left / center / right" refers to position within the analyzed
     image, phrased as "appears on the left side of the image". It is NOT
     a statement about the user's physical surroundings.
 
-4. SPEECH LIMITATIONS
+5. SPEECH LIMITATIONS
 ---------------------
   - Offline TTS voice quality depends on eSpeak NG; pronunciation of
     some words may be imperfect.
@@ -41,7 +60,7 @@ Do not rely on this app for safe mobility or obstacle avoidance."
   - Speech is user-triggered or explicitly enabled; the app never speaks
     unexpectedly on load.
 
-5. OCR LIMITATIONS
+6. OCR LIMITATIONS
 ------------------
   - English only (until other languages are explicitly tested).
   - Handwriting, very low resolution, heavy blur, extreme rotation, and
@@ -54,7 +73,7 @@ Do not rely on this app for safe mobility or obstacle avoidance."
     single characters - with suspicion.
   - "No text found" is a valid result, not an error.
 
-6. NAVIGATION DEMO LIMITATIONS
+7. NAVIGATION DEMO LIMITATIONS
 ------------------------------
   - The indoor map is a fixed, fictional sample. The system does not know
     the user's live location.
@@ -63,7 +82,7 @@ Do not rely on this app for safe mobility or obstacle avoidance."
   - BFS/A* outputs are algorithm demonstrations on the supplied graph,
     never live guidance. Never described as safe real-world navigation.
 
-7. PRIVACY BEHAVIOUR
+8. PRIVACY BEHAVIOUR
 --------------------
   - All image processing happens locally on the user's machine.
   - No camera images, OCR text, or user data is uploaded, retained, or
@@ -72,7 +91,7 @@ Do not rely on this app for safe mobility or obstacle avoidance."
     docs/SETUP_GUIDE.txt and models/README.txt); after that the app
     works offline.
 
-8. KNOWN FAILURE MODES
+9. KNOWN FAILURE MODES
 ----------------------
   F1. Missing camera or denied permission -> camera mode disabled with
       fallback instructions; image upload remains available.
@@ -80,10 +99,15 @@ Do not rely on this app for safe mobility or obstacle avoidance."
       rest of app stays usable.
   F3. TTS engine missing -> text summaries shown plus setup hint.
   F4. Unsupported/corrupted image -> validation error before processing.
-  F5. Low memory -> OCR stays lazy-loaded; camera inference throttled.
+  F5. Low memory -> OCR, open-vocabulary, and depth stay lazy-loaded;
+      camera inference and auto-briefing are throttled by intervals.
+  F6. Open-vocabulary or depth weights unavailable -> actionable warning;
+      detections above remain valid and the rest of the app stays usable.
 
-9. SAFE WORDING RULES (for the product and all documentation)
+10. SAFE WORDING RULES (for the product and all documentation)
 ------------------------------------------------------------
   - Never say "safe", "collision prevention", or "guaranteed navigation".
   - Use "appears", "detected in this image", "based on the sample map".
+  - Proximity must always be called "relative", never a distance in
+    metres. Never imply that a band clearing means the path is safe.
   - Always keep the visual equivalent of spoken information available.

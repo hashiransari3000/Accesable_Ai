@@ -15,10 +15,15 @@ applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
 ## Features
 
 - **Scene Assistant** — choose **Image upload** or **Live camera** mode;
-  detect common objects with a small pretrained YOLO model (CPU), see
-  confidence values and an annotated preview, and get cautious
-  relative-position descriptions ("appears in the lower center area of the
-  image").
+  detect common objects with a small pretrained YOLO model (CPU), or
+  search for custom items (door, stairs, ramp) with **open-vocabulary
+  YOLO-World**; optionally add **relative proximity bands** (relative
+  within one image only, never metres), see confidence values and an
+  annotated preview, and get cautious relative-position descriptions
+  ("appears in the lower center area of the image").
+- **Auto-briefing (camera)** — optional change detection that announces
+  only objects that appear or clear, with every announcement also shown
+  as text.
 - **Read Text** — extract printed text from images with local OCR
   (English), with faithful copy/download and a speak-aloud option.
 - **Voice feedback** — offline text-to-speech (pyttsx3 + eSpeak NG) with
@@ -32,15 +37,16 @@ applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
 
 ## Status
 
-**Release (Phase 8) complete + post-release enhancement pass.** All 9
-phases (0–8) built, tested, and documented: image upload, local YOLO
+**Release (Phase 8) complete + enhancement passes through Phase 9.** All
+10 phases (0–9) built, tested, and documented: image upload, local YOLO
 detection, relative positions, offline speech, local OCR read-aloud,
-controlled live camera, and the BFS/A* navigation demo. The enhanced
-build adds a mode-switched Scene Assistant, a single shared voice-rate
-control, matplotlib route maps, uploader/clear-flow fixes, and theme
-coherence. **81/81 tests pass, verified from a clean virtual environment
-install** (exact steps in `docs/SETUP_GUIDE.txt`); ruff lint clean. Full
-history in `docs/PHASE_LOG.txt`, final results in `docs/TEST_PLAN.txt`.
+controlled live camera, the BFS/A* navigation demo, and the Phase 9
+advanced package (open-vocabulary detection, relative depth bands,
+camera auto-briefing). The build also adds a mode-switched Scene
+Assistant, a single shared voice-rate control, matplotlib route maps,
+uploader/clear-flow fixes, and theme coherence. **102/102 tests pass**;
+ruff lint clean. Full history in `docs/PHASE_LOG.txt`, final results in
+`docs/TEST_PLAN.txt`.
 
 ## Screenshots
 
@@ -53,11 +59,12 @@ bounding boxes, Read Text results, Navigation comparison view.)_ See `docs/PHASE
 |-----------------|-------------------------------------------|
 | Language        | Python                                    |
 | UI              | Streamlit                                 |
-| Detection       | Ultralytics YOLO (nano, CPU)              |
+| Detection       | Ultralytics YOLO11n + YOLO-World (CPU)     |
+| Depth           | Depth Anything V2 Small (relative bands)  |
 | Image handling  | OpenCV                                    |
 | OCR             | EasyOCR (lazy-loaded)                     |
 | Speech          | pyttsx3 + eSpeak NG (offline)             |
-| Navigation      | Hand-written BFS / A* (+ NetworkX for viz)|
+| Navigation      | Hand-written BFS / A* (+ matplotlib maps) |
 | Tests           | pytest                                    |
 
 ## Installation
@@ -104,7 +111,9 @@ technology product and is not a replacement for a white cane, guide dog,
 mobility training, or human assistance. Object detection can miss or
 misidentify objects; a 2D image cannot provide reliable distance or
 collision risk; the navigation demo uses a fixed fictional map and provides
-no live guidance. See `docs/SAFETY_AND_LIMITATIONS.txt`.
+no live guidance. Optional proximity bands are relative within a single
+image, never metres, and must not be used to judge real-world distance or
+safety. See `docs/SAFETY_AND_LIMITATIONS.txt`.
 
 ## Licence Notes
 

@@ -25,6 +25,7 @@ Model provenance (recorded per TEST_PLAN/documentation requirements):
 from __future__ import annotations
 
 import io
+import threading
 from dataclasses import dataclass, field
 
 # --- Configuration ----------------------------------------------------------
@@ -34,6 +35,10 @@ DEFAULT_INPUT_SIZE = 640  # documented inference size (spec section 11)
 
 _MODEL_CACHE: dict[str, object] = {}
 
+# Ultralytics predictors are not thread-safe; camera preview fragments,
+# auto-briefing, and manual capture can request inference concurrently.
+INFERENCE_LOCK = threading.Lock()
+
 
 @dataclass
 class Detection:
@@ -42,6 +47,7 @@ class Detection:
     label: str
     confidence: float  # model score, NOT a probability of safety
     bbox: tuple[int, int, int, int]  # x1, y1, x2, y2 in image pixels
+    proximity: str | None = None  # relative depth band within the image only
 
 
 @dataclass
@@ -53,6 +59,7 @@ class DetectionResult:
     image_size: tuple[int, int] = (0, 0)  # width, height
     model_name: str = ""
     inference_ms: int = 0
+    depth_ms: int = 0  # time spent on optional depth estimation
     error: str | None = None
 
 
@@ -81,6 +88,27 @@ def clamp_bbox(
 def format_label(label: str, confidence: float) -> str:
     """Human-readable label, e.g. 'chair (82%)'."""
     return f"{label} ({confidence * 100:.0f}%)"
+
+
+def detections_from_raw(raw, width: int, height: int, threshold: float) -> list[Detection]:
+    """Convert an Ultralytics Results object into structured detections."""
+    detections: list[Detection] = []
+    for box in raw.boxes:
+        vals = box.xyxy[0]
+        if hasattr(vals, "tolist"):
+            vals = vals.tolist()
+        x1, y1, x2, y2 = (int(v) for v in vals)
+        clamped = clamp_bbox((x1, y1, x2, y2), width, height)
+        if clamped is None:
+            continue
+        detections.append(
+            Detection(
+                label=raw.names[int(box.cls[0])],
+                confidence=float(box.conf[0]),
+                bbox=clamped,
+            )
+        )
+    return filter_by_confidence(detections, threshold)
 
 
 # --- Model loading (lazy, cached, CPU) --------------------------------------
@@ -187,10 +215,11 @@ def analyze_image(
 
     try:
         start = time.perf_counter()
-        raw = model.predict(
-            pil, conf=confidence_threshold, imgsz=DEFAULT_INPUT_SIZE,
-            device="cpu", verbose=False,
-        )
+        with INFERENCE_LOCK:
+            raw = model.predict(
+                pil, conf=confidence_threshold, imgsz=DEFAULT_INPUT_SIZE,
+                device="cpu", verbose=False,
+            )
         result.inference_ms = int((time.perf_counter() - start) * 1000)
     except Exception as exc:  # inference failure on this particular image
         result.error = (
@@ -200,23 +229,9 @@ def analyze_image(
         )
         return result
 
-    detections: list[Detection] = []
-    for box in raw[0].boxes:
-        vals = box.xyxy[0]
-        if hasattr(vals, "tolist"):
-            vals = vals.tolist()
-        x1, y1, x2, y2 = (int(v) for v in vals)
-        clamped = clamp_bbox((x1, y1, x2, y2), pil.width, pil.height)
-        if clamped is None:
-            continue
-        detections.append(
-            Detection(
-                label=raw[0].names[int(box.cls[0])],
-                confidence=float(box.conf[0]),
-                bbox=clamped,
-            )
-        )
-    result.detections = filter_by_confidence(detections, confidence_threshold)
+    result.detections = detections_from_raw(
+        raw[0], pil.width, pil.height, confidence_threshold
+    )
 
     try:
         result.annotated_png = annotate_image(image_bytes, result.detections)

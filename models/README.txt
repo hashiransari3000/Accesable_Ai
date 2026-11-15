@@ -19,3 +19,23 @@ EasyOCR models (Phase 4)
   Location:  ~/.EasyOCR/ (user home cache managed by EasyOCR itself,
              NOT inside this repository - therefore never committed)
   After the first download, OCR works fully offline.
+
+yolov8s-worldv2.pt (Phase 9)
+  Model:     YOLO-World v2 small - open-vocabulary detection (text prompts)
+  Size:      ~24.7 MB
+  Download:  automatic, once, from Ultralytics official assets on the
+             first open-vocabulary run
+  Extra:     CLIP ViT-B/32 text encoder (~354 MB) also downloads once
+             into weights/clip/ (gitignored runtime cache) on the same
+             first run
+  Package:   ultralytics 8.4.212
+  Licence:   AGPL-3.0 (Ultralytics); CLIP weights via ultralytics assets
+  After the first download, open-vocabulary detection works offline.
+
+Depth Anything V2 Small (Phase 9, optional)
+  Model:     depth-anything/Depth-Anything-V2-small-hf
+  Download:  automatic, once, via Hugging Face transformers on the first
+             "Estimate relative proximity" run (~100 MB)
+  Location:  ~/.cache/huggingface/ (user cache, NOT in this repository)
+  Output:    relative depth only - no metric scale, no safety meaning.
+  After the first download, proximity bands work offline.
