@@ -26,3 +26,6 @@ easyocr==1.7.2              # pulls scipy, scikit-image, shapely, pyclipper
 
 # Testing
 pytest==9.2.0
+
+# Dev tooling (not required to run the app)
+# ruff (lint; config in ruff.toml)

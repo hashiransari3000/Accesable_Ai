@@ -9,24 +9,36 @@ summaries, and explore indoor route planning on a sample map.
 
 ## Features
 
-- **Scene Assistant** — upload an image, detect common objects with a small
-  pretrained YOLO model (CPU), see confidence values, and get cautious
-  relative-position descriptions ("appears on the left side of the image").
+- **Scene Assistant** — upload an image or use the controlled live camera;
+  detect common objects with a small pretrained YOLO model (CPU), see
+  confidence values and an annotated preview, and get cautious
+  relative-position descriptions ("appears in the lower center area of the
+  image").
 - **Read Text** — extract printed text from images with local OCR
-  (English), with a speak-aloud option.
+  (English), with copy/download and a speak-aloud option.
 - **Voice feedback** — offline text-to-speech (pyttsx3 + eSpeak NG) with
   speak / stop / replay / rate controls and a visual text equivalent.
-- **Indoor Navigation Demo** — BFS and A* shortest-path algorithms on a
-  clearly fictional sample building map, with simulation-only wording.
+- **Indoor Navigation Demo** — hand-written BFS and A* shortest-path
+  algorithms on a clearly fictional sample building map, with a BFS-vs-A*
+  comparison (cost, hops, nodes explored, timing) and simulation-only
+  wording.
 - **Privacy by default** — all processing is local; no cloud APIs, no
   telemetry, no data retention.
 
 ## Status
 
-Phase 7 complete: all modules integrated, lint-clean (ruff), and the three
-primary user journeys verified end-to-end in a single scripted run. Speech
-lifecycle tightened (stops on clear/page change); Settings controls live.
-Remaining: final QA, README screenshots, and release (Phase 8). See `docs/PHASE_LOG.txt` for progress.
+**Release (Phase 8) complete.** All 9 phases (0–8) built, tested, and
+documented: image upload, local YOLO detection, relative positions,
+offline speech, local OCR read-aloud, controlled live camera, and the
+BFS/A* navigation demo. **81/81 tests pass, verified from a clean
+virtual environment install** (exact steps in `docs/SETUP_GUIDE.txt`);
+ruff lint clean. Full history in `docs/PHASE_LOG.txt`, final results in
+`docs/TEST_PLAN.txt`.
+
+## Screenshots
+
+_(To be added from your browser: dashboard, Scene Assistant results with
+bounding boxes, Read Text results, Navigation comparison view.)_ See `docs/PHASE_LOG.txt` for progress.
 
 ## Tech Stack
 
