@@ -14,7 +14,6 @@ Pages:
 from __future__ import annotations
 
 import io
-import time
 
 import streamlit as st
 from PIL import Image
@@ -562,26 +561,40 @@ def render_camera_section() -> None:
         st.rerun()
 
     auto = st.checkbox(
-        "Live preview (auto-refresh)",
+        "Live preview",
+        value=True,
         key=CAMERA_AUTO,
-        help="Refreshes the preview every interval. Inference still runs "
-        "only when you press Capture & analyze.",
+        help="Continuously refreshes the preview. Inference still runs only "
+        "when you press Capture & analyze.",
     )
+    interval = 0.25
     if auto:
-        st.slider(
-            "Preview refresh interval (seconds)", 0.5, 3.0, 1.0, 0.5,
+        interval = st.slider(
+            "Preview refresh interval (seconds)", 0.1, 1.0, 0.25, 0.05,
             key="preview_interval",
+            format="%.2f s",
+            help="Lower is smoother. Only the preview image refreshes - the "
+            "rest of the page does not rerun.",
         )
 
-    frame = cam_inst.get_frame()
-    if frame is None:
-        st.caption("Waiting for the first frame...")
-    else:
+    @st.fragment(run_every=interval if auto else None)
+    def _live_preview() -> None:
+        # A fragment re-renders only this image, not the whole page, so the
+        # preview stays smooth even at several refreshes per second.
+        if not cam_inst.is_active():
+            st.rerun(scope="app")  # camera stopped elsewhere; rebuild page
+        frame = cam_inst.get_frame()
+        if frame is None:
+            st.caption("Waiting for the first frame...")
+            return
         st.image(
             frame[:, :, ::-1],  # BGR -> RGB for display
             caption="Live preview (uncaptured frames are not analyzed)",
             width="stretch",
+            output_format="JPEG",
         )
+
+    _live_preview()
 
     threshold = st.session_state.get("conf_threshold", od.DEFAULT_CONFIDENCE)
     st.caption(
@@ -602,7 +615,11 @@ def render_camera_section() -> None:
         _stop_camera()
         st.rerun()
 
+    if refresh_pressed:
+        st.rerun()
+
     if capture_pressed:
+        frame = cam_inst.get_frame()  # freshest frame at press time
         if frame is None:
             components.status_banner("warning", "No frame available yet.")
         else:
@@ -616,13 +633,6 @@ def render_camera_section() -> None:
             st.rerun()
 
     _render_camera_results()
-
-    # Throttled preview loop: capture rate (15 fps in the grabber thread)
-    # stays decoupled from the UI refresh and from inference.
-    if (auto or refresh_pressed) and cam_inst.is_active():
-        if auto:
-            time.sleep(st.session_state.get("preview_interval", 1.0))
-        st.rerun()
 
 
 def _render_camera_results() -> None:
