@@ -24,6 +24,11 @@ applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
 - **Auto-briefing (camera)** — optional change detection that announces
   only objects that appear or clear, with every announcement also shown
   as text.
+- **Rubik's cube check (upload)** — an optional heuristic that looks for
+  a 3x3 grid of saturated stickers. It is a classical OpenCV pattern
+  check, **not a trained model and not 100% accurate**: scrambled
+  multi-colour faces are detected best; solved single-colour faces,
+  glare, and very small cubes are missed.
 - **Read Text** — extract printed text from images with local OCR
   (English), with faithful copy/download and a speak-aloud option.
 - **Voice feedback** — offline text-to-speech (pyttsx3 + eSpeak NG) with
@@ -44,7 +49,8 @@ controlled live camera, the BFS/A* navigation demo, and the Phase 9
 advanced package (open-vocabulary detection, relative depth bands,
 camera auto-briefing). The build also adds a mode-switched Scene
 Assistant, a single shared voice-rate control, matplotlib route maps,
-uploader/clear-flow fixes, and theme coherence. **102/102 tests pass**;
+uploader/clear-flow fixes, theme coherence, and an optional Rubik's cube
+face check. **108/108 tests pass**;
 ruff lint clean. Full history in `docs/PHASE_LOG.txt`, final results in
 `docs/TEST_PLAN.txt`.
 
@@ -65,6 +71,7 @@ bounding boxes, Read Text results, Navigation comparison view.)_ See `docs/PHASE
 | OCR             | EasyOCR (lazy-loaded)                     |
 | Speech          | pyttsx3 + eSpeak NG (offline)             |
 | Navigation      | Hand-written BFS / A* (+ matplotlib maps) |
+| Cube check      | Classical OpenCV colour-grid (no training)|
 | Tests           | pytest                                    |
 
 ## Installation

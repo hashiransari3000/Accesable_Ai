@@ -56,6 +56,15 @@ ACCESSABLE AI - ARCHITECTURE
       ignored. Produces a ChangeReport whose summary is both spoken and
       rendered as text.
 
+  modules/rubiks_detector.py
+      Classical OpenCV heuristic for Rubik's cube faces (no training).
+      Builds a saturated-colour mask, takes the convex hull of the
+      largest valid quadrilateral (falling back to minAreaRect),
+      warps it to 300x300, classifies the nine tile centres by HSV
+      colour vote, and scores the pattern (>=7/9 tiles, >=3 distinct
+      colours, score >=0.55). Emits a Detection with source
+      "color-grid". Explicitly misses solved single-colour faces.
+
   modules/position_analysis.py
       Pure functions. Maps a bounding box to coarse screen-relative
       position: horizontal (left / center / right) and vertical

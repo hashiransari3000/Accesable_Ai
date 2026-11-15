@@ -18,6 +18,12 @@ Do not rely on this app for safe mobility or obstacle avoidance."
 -------------------------------
   - The standard pretrained YOLO model recognizes only the classes in its
     training labels (80 COCO classes); it cannot detect everything.
+  - The optional Rubik's cube face check is a classical 3x3 colour-grid
+    heuristic, NOT a trained model. It is not 100% accurate: solved or
+    nearly solved single-colour faces, heavy glare, blur, very small
+    cubes, and occluded faces are missed. Colourful 3x3 patterns (tiles,
+    windows, artwork) can produce false positives. It only runs in
+    Image upload mode.
   - The optional open-vocabulary model (YOLO-World) accepts text prompts
     such as "door" or "stairs", but it is LESS reliable than fixed-class
     YOLO: scores are much lower, and unusual or abstract prompts may
@@ -103,6 +109,8 @@ Do not rely on this app for safe mobility or obstacle avoidance."
       camera inference and auto-briefing are throttled by intervals.
   F6. Open-vocabulary or depth weights unavailable -> actionable warning;
       detections above remain valid and the rest of the app stays usable.
+  F7. Rubik's cube check finds nothing -> explicit "no 3x3 colour grid"
+      note (not an error); the rest of the results stay valid.
 
 10. SAFE WORDING RULES (for the product and all documentation)
 ------------------------------------------------------------
@@ -110,4 +118,6 @@ Do not rely on this app for safe mobility or obstacle avoidance."
   - Use "appears", "detected in this image", "based on the sample map".
   - Proximity must always be called "relative", never a distance in
     metres. Never imply that a band clearing means the path is safe.
+  - The Rubik's cube check must never be described as 100% accurate or
+    as a trained AI model; call it a heuristic colour-grid check.
   - Always keep the visual equivalent of spoken information available.

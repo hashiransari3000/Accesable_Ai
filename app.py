@@ -23,6 +23,7 @@ from modules import camera as cam_mod
 from modules import depth_estimation as depth_mod
 from modules import object_detection as od
 from modules import open_vocabulary as ov
+from modules import rubiks_detector as rubiks
 from modules import scene_tracker as tracker
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
@@ -39,7 +40,7 @@ st.set_page_config(
 )
 styles.inject_global_css()
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 PAGES = [
     "Dashboard",
@@ -60,6 +61,7 @@ SESSION_RESULT_SRC = "detection_source"  # image bytes the result belongs to
 SESSION_RESULT_CONF = "detection_conf"   # threshold used for that result
 SESSION_RESULT_OPTS = "detection_opts"   # (model kind, vocabulary) of result
 DEPTH_ERROR = "depth_error"
+CUBE_NOTE = "rubiks_note"  # (kind, message) from the Rubik's cube check
 SESSION_UPLOAD_EPOCH = "scene_upload_epoch"
 SESSION_UPLOAD_FP = "scene_upload_fingerprint"
 
@@ -310,6 +312,7 @@ def _render_upload_mode() -> None:
         )
     else:
         opts_now = ("standard", ())
+    opts_now = opts_now + (bool(st.session_state.get("rubiks_check", False)),)
     stale = st.session_state.get(SESSION_RESULT) is not None and (
         st.session_state.get(SESSION_RESULT_SRC) != image_bytes
         or saved_opts != opts_now
@@ -381,6 +384,14 @@ def _render_upload_mode() -> None:
         "download). Relative, not metres - never a safety signal.",
     )
 
+    use_rubiks = st.checkbox(
+        "Rubik's cube face check (3x3 colour grid)",
+        key="rubiks_check",
+        help="Heuristic pattern check for a scrambled cube face. Not a "
+        "trained model and not 100% accurate: solved single-colour faces, "
+        "heavy glare, and very small cubes can be missed. Image upload only.",
+    )
+
     if use_open_vocab:
         conf_threshold = st.slider(
             "Open-vocabulary confidence threshold",
@@ -413,6 +424,7 @@ def _render_upload_mode() -> None:
     current_opts = (
         "open" if use_open_vocab else "standard",
         tuple(ov.parse_vocabulary(vocabulary_text)) if use_open_vocab else (),
+        use_rubiks,
     )
 
     if st.button("Analyze image", type="primary"):
@@ -457,6 +469,40 @@ def _render_upload_mode() -> None:
                         depth_error = depth_mod.annotate_result(result, image_bytes)
                     if depth_error:
                         st.session_state[DEPTH_ERROR] = depth_error
+            st.session_state.pop(CUBE_NOTE, None)
+            if use_rubiks:
+                cube, cube_error = rubiks.detect_rubiks_cube(image_bytes)
+                if cube_error:
+                    st.session_state[CUBE_NOTE] = ("warning", cube_error)
+                elif cube is not None:
+                    result.detections = sorted(
+                        [*result.detections, cube],
+                        key=lambda d: d.confidence,
+                        reverse=True,
+                    )
+                    try:
+                        result.annotated_png = od.annotate_image(
+                            image_bytes, result.detections
+                        )
+                    except Exception:
+                        pass  # detections remain valid without the overlay
+                    st.session_state[CUBE_NOTE] = (
+                        "success",
+                        (
+                            "Rubik's cube check matched a 3x3 colour grid "
+                            f"(heuristic pattern score {cube.confidence:.0%}; "
+                            "not a trained model, not 100% accurate)."
+                        ),
+                    )
+                else:
+                    st.session_state[CUBE_NOTE] = (
+                        "info",
+                        (
+                            "Rubik's cube check: no 3x3 colour grid found. A "
+                            "solved single-colour face, heavy glare, or a very "
+                            "small cube may be missed."
+                        ),
+                    )
             st.session_state[SESSION_RESULT] = result
             st.session_state[SESSION_RESULT_SRC] = image_bytes
             st.session_state[SESSION_RESULT_CONF] = conf_threshold
@@ -508,11 +554,15 @@ def _render_detection_results(
     if depth_error:
         components.status_banner("warning", depth_error)
 
+    cube_note = st.session_state.get(CUBE_NOTE)
+    if cube_note:
+        components.status_banner(cube_note[0], cube_note[1])
+
     if result.detections:
         banner = (
-            f"{len(result.detections)} object(s) detected by "
-            f"{result.model_name} (threshold {conf_used:.2f}, "
-            f"inference {result.inference_ms} ms on CPU"
+            f"{len(result.detections)} object(s) found - "
+            f"{result.model_name} inference {result.inference_ms} ms on CPU "
+            f"(threshold {conf_used:.2f}"
         )
         if result.depth_ms:
             banner += f", depth {result.depth_ms} ms"
@@ -543,6 +593,7 @@ def _render_detection_results(
     # Structured detection list, now with relative position (Phase 3)
     if result.detections:
         has_proximity = any(d.proximity for d in result.detections)
+        has_heuristic = any(d.source != "model" for d in result.detections)
         st.subheader("Detected objects")
         rows = []
         for d in result.detections:
@@ -555,6 +606,10 @@ def _render_detection_results(
             }
             if has_proximity:
                 row["Proximity (relative)"] = d.proximity or "n/a"
+            if has_heuristic:
+                row["Source"] = (
+                    "colour-grid check" if d.source == "color-grid" else "model"
+                )
             row["Bounding box (x1, y1, x2, y2)"] = str(d.bbox)
             rows.append(row)
         st.dataframe(rows, width="stretch", hide_index=True)

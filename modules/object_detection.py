@@ -48,6 +48,7 @@ class Detection:
     confidence: float  # model score, NOT a probability of safety
     bbox: tuple[int, int, int, int]  # x1, y1, x2, y2 in image pixels
     proximity: str | None = None  # relative depth band within the image only
+    source: str = "model"  # "model" or "color-grid" (Rubik's cube check)
 
 
 @dataclass
