@@ -1,4 +1,4 @@
-"""Tests for announcement prioritization and repetition guard (A1-A6, cooldown)."""
+"""Tests for announcement prioritization and the repetition guard."""
 
 from modules.announcement_manager import (
     RepetitionGuard,

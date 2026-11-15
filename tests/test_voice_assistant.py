@@ -1,4 +1,4 @@
-"""Tests for the voice assistant (TEST_PLAN speech matrix, stubbed pyttsx3).
+"""Tests for the voice assistant with a stubbed pyttsx3.
 
 Real audio output cannot be verified in an automated run; these tests
 stub the pyttsx3 import to check state transitions, cancellation, and

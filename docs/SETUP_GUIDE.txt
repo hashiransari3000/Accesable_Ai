@@ -1,61 +1,70 @@
-ACCESSABLE AI - SETUP GUIDE (Fedora / Linux)
-============================================
+ACCESSABLE AI - SETUP GUIDE (Linux)
+===================================
 
 1. PREREQUISITES
 ----------------
-  - Python 3.10+ (this machine has 3.14)
+  - Python 3.10 or newer (developed and tested with Python 3.14)
   - Git
-  - System package for offline speech:
-      sudo dnf install espeak-ng
-    Check with:  espeak-ng --version
-    (Already verified present on this machine: /usr/bin/espeak-ng)
+  - espeak-ng for offline speech:
+      sudo dnf install espeak-ng        # Fedora
+      sudo apt install espeak-ng        # Debian/Ubuntu
+    Verify with: espeak-ng --version
 
 2. GET THE CODE
 ---------------
-  Clone the repository (once a GitHub remote is configured) or use the
-  local project folder directly.
+      git clone https://github.com/hashiransari3000/Accesable_Ai.git
+      cd Accesable_Ai
 
 3. CREATE A VIRTUAL ENVIRONMENT
 -------------------------------
-      cd AccessAble-AI        # or the project folder
       python3 -m venv .venv
       source .venv/bin/activate
 
 4. INSTALL PYTHON PACKAGES
--------------------------
-  CPU-only laptop (recommended, avoids ~2 GB of CUDA downloads):
+--------------------------
+  Install the CPU-only build of torch first to avoid multi-gigabyte CUDA
+  downloads:
+
       pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       pip install -r requirements.txt
 
-  Pip packages used (pinned in requirements.txt):
-    streamlit      UI framework
-    ultralytics    YOLO object detection (yolo11n, CPU inference)
-    opencv-python  image handling, preprocessing, annotation
-    pillow         image utilities
-    pyttsx3        offline text-to-speech wrapper (Phase 3)
-    easyocr        local OCR (Phase 4, loaded on demand)
-    networkx       graph visualization/validation only (Phase 6)
-    pytest         test runner
-    torch/torchvision (CPU builds) deep-learning runtime for YOLO
+  Main packages (pinned in requirements.txt):
+      streamlit        UI framework
+      ultralytics      YOLO11n detection and YOLO-World
+      opencv-python    image handling and annotation
+      pillow           image utilities
+      transformers     optional relative-depth model
+      matplotlib       route-map rendering
+      pyttsx3          offline text-to-speech wrapper
+      easyocr          local OCR (loaded on demand)
+      pytest           test runner
 
-  System vs pip: only espeak-ng is a system package; everything else
-  installs via pip.
+  Only espeak-ng is a system package; everything else installs with pip.
 
-5. MODEL DOWNLOAD BEHAVIOUR
----------------------------
-  - YOLO11n weights (~5.4 MB) download automatically over the network
-    ONCE, on the first detection run, into models/yolo11n.pt.
-  - After that first download, detection works fully offline.
-  - EasyOCR downloads its recognition model on first OCR use, likewise
-    cached locally (Phase 4).
-  - No paid services, accounts, or API keys are involved.
+5. MODEL DOWNLOADS
+------------------
+  Models download automatically on first use and are cached locally. After
+  that, the app works offline.
+
+      YOLO11n                  ~5.4 MB    models/yolo11n.pt
+      YOLO-World v2            ~24.7 MB   models/yolov8s-worldv2.pt
+        + CLIP text encoder    ~354 MB    weights/clip/ (first open-vocab run)
+      Depth Anything V2 Small  ~100 MB    ~/.cache/huggingface/
+      EasyOCR English          ~95 MB     ~/.EasyOCR/
+
+  No paid services, accounts, or API keys are involved.
 
 6. RUN THE APP
 --------------
       streamlit run app.py
 
-  Then open the shown local URL (default http://localhost:8501) in a
-  browser.
+  Open http://localhost:8501.
+
+  To serve the demo on a network interface:
+      streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+
+  A public deployment has no built-in login. Do not upload sensitive images
+  to a shared or public instance.
 
 7. RUN THE TESTS
 ----------------
@@ -63,36 +72,39 @@ ACCESSABLE AI - SETUP GUIDE (Fedora / Linux)
 
 8. TROUBLESHOOTING
 ------------------
-  T1  "pyttsx3 driver not found" / no speech
-      -> Ensure espeak-ng is installed: sudo dnf install espeak-ng
-      -> Speech degrades to text-only output; the app stays usable.
+  T1  No speech
+      -> Install espeak-ng. Speech degrades to text-only output; the app
+         remains usable.
+
   T2  First detection is slow
-      -> Model is downloading on first use; later runs are fast.
-  T3  Camera not detected / permission denied
-      -> Image upload still works; check OS camera permissions.
+      -> Model weights are downloading on first use; later runs are fast.
+
+  T3  Camera not detected or permission denied
+      -> Image upload still works. Check OS camera permissions. On Linux the
+         user may need to be in the 'video' group:
+         sudo usermod -aG video $USER
+
   T4  Memory pressure
-      -> OCR loads only when requested; close other heavy apps.
-  T5  Package install fails on Python 3.14
-      -> Verified working with the pinned versions in requirements.txt
-         (torch 2.15.0+cpu, torchvision 0.29.2+cpu, ultralytics 8.4.212,
-         opencv 5.0.0.93, streamlit 1.67.0). If a wheel is missing on a
-         different machine, fall back to a Python 3.11/3.12 venv:
+      -> OCR, depth, and open-vocabulary models load only when requested.
+         Close other heavy applications.
+
+  T5  Package install fails
+      -> Use a supported Python version (3.11-3.14) and keep the pinned
+         versions. If a wheel is missing, try Python 3.12:
          python3.12 -m venv .venv
+
   T6  "operator torchvision::nms does not exist"
       -> torch/torchvision mismatch. Reinstall both CPU builds together:
          pip install --upgrade torch torchvision \
              --index-url https://download.pytorch.org/whl/cpu
-      (This exact failure was hit and fixed during Phase 2.)
-  T7  Camera not detected / permission denied / device busy
-      -> Check the webcam is connected and allowed for your user; close
-         apps currently using it. The app shows fallback instructions
-         and image upload keeps working. On Fedora, webcam access may
-         require being in the 'video' group: sudo usermod -aG video $USER
-  T8  Port 8501 busy
+
+  T7  Port 8501 busy
       -> streamlit run app.py --server.port 8502
 
 9. PRIVACY NOTE
 ---------------
-  All processing is local. Images and text never leave your machine.
-  The only network use is the one-time model download, clearly flagged
-  in the UI when it happens.
+  The app does not save uploaded images, OCR text, or voice data, and it
+  contains no analytics. When you run it locally, processing stays on your
+  machine. On a hosted instance, images are processed in memory on the hosting
+  server; avoid uploading sensitive content to a public deployment. The only
+  network use is the one-time model download.

@@ -1,7 +1,7 @@
 """Offline voice assistant for AccessAble AI.
 
 Wraps pyttsx3 (eSpeak NG backend on Linux) for fully offline speech -
-no network, no account, no cost (spec 3.3).
+no network, no account, no cost.
 
 Design notes:
   - Speech runs in a background daemon thread because Streamlit scripts

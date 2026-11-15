@@ -1,11 +1,9 @@
 """Announcement building for AccessAble AI speech output.
 
 Turns raw detections into a short, prioritized, human-friendly summary
-(spec 3.3: never overwhelm the user with a long list) and provides a
-repetition guard with a cooldown for continuous sources like the camera
-(Phase 5) so the same unchanged object is not announced every frame.
-
-Pure logic, no I/O, fully unit-testable (TEST_PLAN A1-A6).
+and provides a repetition guard with a cooldown for continuous sources
+like the camera, so the same unchanged object is not announced every
+frame. Pure logic, no I/O, fully unit-testable.
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ from dataclasses import dataclass
 from modules.object_detection import Detection
 from modules.position_analysis import describe_position
 
-# Cap on spoken items: concise beats complete (spec 3.3).
+# Cap on spoken items: concise beats complete.
 DEFAULT_MAX_ITEMS = 4
 
 # Classes that matter most for a person moving through a space get a

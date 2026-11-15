@@ -10,7 +10,7 @@ Responsibilities:
 This module knows nothing about Streamlit. The UI calls
 `analyze_image(...)` and renders the returned dataclass.
 
-Model provenance (recorded per TEST_PLAN/documentation requirements):
+Model provenance:
   - Model:    YOLO11n (nano variant)
   - Package:  ultralytics 8.4.212
   - Licence:  AGPL-3.0 (Ultralytics). Used here under its terms for an
@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 # --- Configuration ----------------------------------------------------------
 DEFAULT_MODEL_PATH = "models/yolo11n.pt"
 DEFAULT_CONFIDENCE = 0.40
-DEFAULT_INPUT_SIZE = 640  # documented inference size (spec section 11)
+DEFAULT_INPUT_SIZE = 640  # inference size used for CPU detections
 
 _MODEL_CACHE: dict[str, object] = {}
 
@@ -156,7 +156,7 @@ def annotate_image(image_bytes: bytes, detections: list[Detection]) -> bytes:
     """Draw bounding boxes + labels on the image; return PNG bytes.
 
     Kept deliberately simple: solid rectangle + filled label background so
-    the overlay stays readable (avoid clutter, spec 3.1).
+    the overlay stays readable.
     """
     import cv2
     import numpy as np

@@ -1,8 +1,8 @@
 """Design system for AccessAble AI.
 
-Visual direction (grounded in the ui-ux-pro-max skill catalogs):
-  - Typeface: Atkinson Hyperlegible (Braille Institute) - designed for
-    low-vision readers; falls back to system fonts if offline.
+Visual direction:
+  - Typeface: system UI fonts only - no external font requests, so the
+    privacy claim holds and the app works fully offline.
   - High-contrast calm palette: near-black ink on soft off-white,
     deep-teal accent (5.7:1 on white), dark slate sidebar shell.
   - 16px+ base text, generous line height, 12px radius surfaces with
@@ -33,7 +33,7 @@ RING = "#0D9488"          # focus ring colour (3:1+ vs page bg)
 
 RADIUS = "12px"
 FONT_STACK = (
-    "'Atkinson Hyperlegible', 'Segoe UI', 'Inter', 'Helvetica Neue', "
+    "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', "
     "Arial, sans-serif"
 )
 
@@ -45,8 +45,6 @@ def inject_global_css() -> None:
     st.markdown(
         f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap');
-
         /* ---------- Base ---------- */
         .stApp {{
             background-color: {BG_PAGE};

@@ -1,5 +1,5 @@
 # AccessAble AI dependency pins.
-# Versions verified on this machine (Python 3.14, Linux) in Phase 3.
+# Versions verified with Python 3.14 on Linux.
 # System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
 #
 # NOTE (CPU-only laptops): install torch and torchvision from the CPU index
@@ -10,28 +10,27 @@
 # UI
 streamlit==1.67.0
 
-# Computer vision / detection (Phase 2)
+# Computer vision / detection
 pillow==13.0.0
 opencv-python==5.0.0.93
 ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
 
-# Open-vocabulary detection (Phase 9)
+# Open-vocabulary detection
 # YOLO-World reuses ultralytics; CLIP tokenization needs ftfy + regex
 ftfy==6.3.1
 regex==2026.11.9
 
-# Relative depth estimation, lazy-loaded at runtime (Phase 9)
+# Relative depth estimation, lazy-loaded at runtime
 transformers==5.23.0        # pulls tokenizers/safetensors; model ~100 MB
 
-# Offline speech (Phase 3)
+# Offline speech
 pyttsx3==2.99               # requires the espeak-ng system package on Linux
 
-# OCR, lazy-loaded at runtime (Phase 4)
+# OCR, lazy-loaded at runtime
 easyocr==1.7.2              # pulls scipy, scikit-image, shapely, pyclipper
 
-# Graph visualization/validation only (algorithms are hand-written) (Phase 6)
-# networkx
-matplotlib==3.11.2          # route-map rendering for the navigation demo
+# Route-map rendering for the navigation demo (algorithms are hand-written)
+matplotlib==3.11.2
 
 # Testing
 pytest==9.2.0

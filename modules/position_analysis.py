@@ -3,7 +3,7 @@
 Pure functions. Given a bounding box and the image dimensions, classify
 where the object APPEARS IN THE IMAGE using the box centre. This says
 nothing about the physical world: a 2D image gives no reliable distance,
-depth, or collision risk (safety docs, spec section 3.2).
+depth, or collision risk.
 
 All phrasing is deliberately cautious ("appears on the left side of the
 image"), never a claim about the user's surroundings.
@@ -24,7 +24,7 @@ def horizontal_region(
 
     The image is split into thirds. A box whose centre falls in the
     middle third counts as 'center'; boxes near boundaries resolve to
-    whichever third contains the centre (P2/P4 in TEST_PLAN).
+    whichever third contains the centre.
     """
     x1, _, x2, _ = bbox
     cx = (x1 + x2) / 2

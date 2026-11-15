@@ -4,9 +4,11 @@ Pure, testable logic used by the Scene Assistant and Read Text pages.
 The UI layer calls `validate_upload(...)` and renders the returned
 state; this module never touches Streamlit.
 
-Rules (error prevention, HCI):
+Rules:
   - Allowed formats: JPEG, PNG (also accepted by the file picker).
   - Max size checked BEFORE decoding (default 10 MB).
+  - Max pixel count checked after a header-only decode (default 40 MP), so a
+    small compressed file cannot expand into an enormous image in memory.
   - Corrupted/undecodable files are rejected with an actionable message.
 """
 
@@ -18,6 +20,7 @@ ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
 ALLOWED_MIME_PREFIXES = ("image/jpeg", "image/png")
 
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+DEFAULT_MAX_PIXELS = 40_000_000  # 40 MP: generous for photos, bounded memory
 
 
 def check_extension(file_name: str, allowed: set[str] | None = None) -> str | None:
@@ -42,15 +45,34 @@ def check_size(size_bytes: int, max_bytes: int = DEFAULT_MAX_BYTES) -> str | Non
     return None
 
 
+def check_dimensions(
+    width: int, height: int, max_pixels: int = DEFAULT_MAX_PIXELS
+) -> str | None:
+    """Return an error message if the image has too many pixels, else None."""
+    if width <= 0 or height <= 0:
+        return "The image has invalid dimensions. Please try a different file."
+    if width * height > max_pixels:
+        megapixels = width * height / 1_000_000
+        limit = max_pixels / 1_000_000
+        return (
+            f"The image is too large ({megapixels:.1f} megapixels). "
+            f"The maximum is {limit:.0f} megapixels."
+        )
+    return None
+
+
 def check_decodable(data: bytes) -> str | None:
     """Return an error message if the bytes are not a decodable image."""
     try:
         from PIL import Image
 
-        Image.open(io.BytesIO(data)).verify()
+        with Image.open(io.BytesIO(data)) as img:
+            img.verify()
+        with Image.open(io.BytesIO(data)) as img:
+            width, height = img.size
     except Exception as exc:  # narrow at call boundary: any decode failure
         return f"The file could not be opened as an image ({exc.__class__.__name__}). Please try a different JPG or PNG."
-    return None
+    return check_dimensions(width, height)
 
 
 def validate_upload(

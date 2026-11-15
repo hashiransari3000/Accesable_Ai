@@ -73,7 +73,7 @@ Do not rely on this app for safe mobility or obstacle avoidance."
     poor lighting can cause missing or wrong text.
   - OCR output can contain errors; users should verify important text.
   - FALSE POSITIVES OCCUR: OCR can report "text" on images that contain
-    none. Observed example during Phase 7 testing: a single letter 'T'
+    none. Observed during testing: a single letter 'T'
     at 97% model confidence extracted from a text-free synthetic room
     image. Treat every extraction - especially short, high-confidence
     single characters - with suspicion.
@@ -90,7 +90,9 @@ Do not rely on this app for safe mobility or obstacle avoidance."
 
 8. PRIVACY BEHAVIOUR
 --------------------
-  - All image processing happens locally on the user's machine.
+  - All processing happens in memory; the app writes no image or text
+    data to disk. When self-hosted, processing stays on your machine; on a
+    public deployment, images are processed on the hosting server.
   - No camera images, OCR text, or user data is uploaded, retained, or
     transmitted. No analytics or telemetry.
   - Model weights download once on first use (documented in

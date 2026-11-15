@@ -1,95 +1,68 @@
 # AccessAble AI
 
-An offline-first accessibility assistant **prototype**: understand a scene
-through object detection, read visible text with OCR, hear concise spoken
-summaries, and explore indoor route planning on a sample map.
+An offline-first accessibility assistant that describes images, reads printed
+text aloud, and demonstrates indoor route planning. Models run locally on CPU —
+no cloud AI APIs, no accounts, no telemetry.
 
-The interface uses the **Atkinson Hyperlegible** typeface (Braille
-Institute), a contrast-checked calm palette, a dark sidebar shell, and
-3px focus rings — designed against WCAG 2.2 AA principles with HCI rules
-applied throughout (see `docs/UI_UX_GUIDELINES.txt`).
-
-> **Educational prototype only. AI may miss or misidentify objects.
-> Do not rely on this app for safe mobility or obstacle avoidance.**
+> Educational prototype. It is not a certified assistive-technology product and
+> must not be used for safe mobility or obstacle avoidance. AI can miss or
+> misidentify objects. See `docs/SAFETY_AND_LIMITATIONS.txt`.
 
 ## Features
 
-- **Scene Assistant** — choose **Image upload** or **Live camera** mode;
-  detect common objects with a small pretrained YOLO model (CPU), or
-  search for custom items (door, stairs, ramp) with **open-vocabulary
-  YOLO-World**; optionally add **relative proximity bands** (relative
-  within one image only, never metres), see confidence values and an
-  annotated preview, and get cautious relative-position descriptions
-  ("appears in the lower center area of the image").
-- **Auto-briefing (camera)** — optional change detection that announces
-  only objects that appear or clear, with every announcement also shown
-  as text.
-- **Rubik's cube check (upload)** — an optional heuristic that looks for
-  a 3x3 grid of saturated stickers. It is a classical OpenCV pattern
-  check, **not a trained model and not 100% accurate**: scrambled
-  multi-colour faces are detected best; solved single-colour faces,
-  glare, and very small cubes are missed.
-- **Read Text** — extract printed text from images with local OCR
-  (English), with faithful copy/download and a speak-aloud option.
-- **Voice feedback** — offline text-to-speech (pyttsx3 + eSpeak NG) with
-  speak / stop / replay / shared rate control and a visual text equivalent.
-- **Indoor Navigation Demo** — hand-written BFS and A* shortest-path
-  algorithms on a clearly fictional sample building map, with a drawn
-  route map, step-by-step distances, and a BFS-vs-A* comparison (cost,
-  hops, nodes explored, timing, side-by-side maps).
-- **Privacy by default** — all processing is local; no cloud APIs, no
-  telemetry (Streamlit usage stats disabled), no data retention.
+- **Scene description** — upload an image or use a live camera to detect common
+  objects with YOLO11n, with confidence values, an annotated preview, and
+  cautious image-relative position descriptions.
+- **Open-vocabulary search** — look for custom items such as `door`, `stairs`,
+  `ramp`, `elevator`, or `handrail` with YOLO-World. Results are less reliable
+  than fixed-class detection and may contain false positives.
+- **Relative proximity (optional)** — depth bands (very close → far) computed
+  within a single image only. These are never metres and never a safety signal.
+- **Rubik's cube face check (optional)** — a classical OpenCV 3×3 colour-grid
+  heuristic for scrambled cube faces. Not a trained model and not 100%
+  accurate; solved single-colour faces, glare, and very small cubes are missed.
+- **Read Text** — local EasyOCR extraction (English) with faithful copy/download
+  and read-aloud.
+- **Voice feedback** — offline text-to-speech with speak, stop, replay, and a
+  shared rate control. Every spoken message has a visual text equivalent.
+- **Camera auto-briefing (optional)** — announces only objects that appear or
+  clear, with change confirmation to ignore flicker, and a persistent text log.
+- **Indoor navigation demo** — hand-written BFS and A* on a clearly fictional
+  sample map, with route maps and a side-by-side comparison.
+- **Privacy by design** — no analytics, no data retention, and no external
+  requests at runtime beyond one-time model downloads. Images are processed in
+  memory and never saved; on a public instance they are processed on the
+  hosting server.
 
-## Status
+## Tech stack
 
-**Release (Phase 8) complete + enhancement passes through Phase 9.** All
-10 phases (0–9) built, tested, and documented: image upload, local YOLO
-detection, relative positions, offline speech, local OCR read-aloud,
-controlled live camera, the BFS/A* navigation demo, and the Phase 9
-advanced package (open-vocabulary detection, relative depth bands,
-camera auto-briefing). The build also adds a mode-switched Scene
-Assistant, a single shared voice-rate control, matplotlib route maps,
-uploader/clear-flow fixes, theme coherence, and an optional Rubik's cube
-face check. **108/108 tests pass**;
-ruff lint clean. Full history in `docs/PHASE_LOG.txt`, final results in
-`docs/TEST_PLAN.txt`.
+| Area | Choice |
+|---|---|
+| Language | Python |
+| UI | Streamlit |
+| Detection | Ultralytics YOLO11n + YOLO-World (CPU) |
+| Depth | Depth Anything V2 Small (optional, relative bands) |
+| Image handling | OpenCV, Pillow |
+| OCR | EasyOCR (loaded on demand) |
+| Speech | pyttsx3 + eSpeak NG (offline) |
+| Navigation | Hand-written BFS / A*, matplotlib route maps |
+| Tests | pytest |
 
-## Screenshots
+## Getting started
 
-_(To be added from your browser: dashboard, Scene Assistant results with
-bounding boxes, Read Text results, Navigation comparison view.)_ See `docs/PHASE_LOG.txt` for progress.
-
-## Tech Stack
-
-| Area            | Choice                                    |
-|-----------------|-------------------------------------------|
-| Language        | Python                                    |
-| UI              | Streamlit                                 |
-| Detection       | Ultralytics YOLO11n + YOLO-World (CPU)     |
-| Depth           | Depth Anything V2 Small (relative bands)  |
-| Image handling  | OpenCV                                    |
-| OCR             | EasyOCR (lazy-loaded)                     |
-| Speech          | pyttsx3 + eSpeak NG (offline)             |
-| Navigation      | Hand-written BFS / A* (+ matplotlib maps) |
-| Cube check      | Classical OpenCV colour-grid (no training)|
-| Tests           | pytest                                    |
-
-## Installation
-
-See `docs/SETUP_GUIDE.txt` for the full Fedora/Linux guide. Short version:
+Full instructions: `docs/SETUP_GUIDE.txt`.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-sudo dnf install espeak-ng   # offline speech backend (Linux)
-```
+sudo dnf install espeak-ng   # Linux offline speech backend
 
-## Run
-
-```bash
 streamlit run app.py
 ```
+
+Open http://localhost:8501.
 
 ## Tests
 
@@ -97,34 +70,36 @@ streamlit run app.py
 pytest -q
 ```
 
-## Screenshots
+## Project layout
 
-_(Added in later phases as features land.)_
+```
+app.py                 Streamlit entry point and page routing
+modules/               Detection, OCR, speech, camera, navigation, checks
+ui/                    Design tokens, shared components, route maps
+assets/                Sample images and the fictional sample map
+docs/                  Setup, architecture, and safety documentation
+models/                Runtime model cache (weights are never committed)
+tests/                 Unit tests and headless UI checks
+```
 
-## Documentation
+## Model provenance
 
-- `docs/PROJECT_OVERVIEW.txt` — problem, users, scope, success criteria
-- `docs/ARCHITECTURE.txt` — modules, data flow, diagram
-- `docs/UI_UX_GUIDELINES.txt` — design tokens, HCI rules, a11y checklist
-- `docs/SAFETY_AND_LIMITATIONS.txt` — honest limitations and safe wording
-- `docs/TEST_PLAN.txt` — test matrix and results
-- `docs/PHASE_LOG.txt` — phase-by-phase build log
-- `docs/SETUP_GUIDE.txt` — installation and troubleshooting
+Model weights download once on first use, then everything works offline; see
+`models/README.txt` for sizes and licences.
 
-## Safety Disclaimer
+- YOLO11n and YOLO-World v2 via Ultralytics (AGPL-3.0)
+- Depth Anything V2 Small via Hugging Face transformers
+- EasyOCR English models (Apache-2.0)
+- eSpeak NG (GPL-3.0, system package)
 
-This project is an educational prototype. It is not a certified assistive
-technology product and is not a replacement for a white cane, guide dog,
-mobility training, or human assistance. Object detection can miss or
-misidentify objects; a 2D image cannot provide reliable distance or
-collision risk; the navigation demo uses a fixed fictional map and provides
-no live guidance. Optional proximity bands are relative within a single
-image, never metres, and must not be used to judge real-world distance or
-safety. See `docs/SAFETY_AND_LIMITATIONS.txt`.
+## Safety
 
-## Licence Notes
+Detection confidence is a model score, not a probability of safety. Position
+and proximity describe the analysed image only, never the user's physical
+surroundings or distance. The navigation demo uses a fixed fictional map and is
+not live guidance. Read `docs/SAFETY_AND_LIMITATIONS.txt` before use.
 
-Application code is part of a university educational project. Third-party
-models/packages (Ultralytics YOLO, EasyOCR, eSpeak NG) remain under their
-own licences; model provenance, version, and licence are documented in
-`docs/` when the detection phase lands.
+## Licence
+
+Application code is provided for educational use. Third-party models and
+packages remain under their own licences as listed above.

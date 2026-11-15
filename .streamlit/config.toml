@@ -7,3 +7,11 @@ textColor = "#101828"
 
 [browser]
 gatherUsageStats = false
+
+[server]
+headless = true
+maxUploadSize = 10
+enableXsrfProtection = true
+
+[client]
+showErrorDetails = "none"

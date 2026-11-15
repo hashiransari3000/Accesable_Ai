@@ -1,4 +1,4 @@
-"""Tests for change detection used by camera auto-briefing (Phase 9)."""
+"""Tests for change detection used by camera auto-briefing."""
 
 from modules.object_detection import Detection
 from modules.scene_tracker import ChangeReport, SceneMemory, grid_position

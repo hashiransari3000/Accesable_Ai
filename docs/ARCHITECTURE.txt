@@ -3,208 +3,135 @@ ACCESSABLE AI - ARCHITECTURE
 
 1. DESIGN PRINCIPLES
 --------------------
-  - Modular: business logic lives in service modules under modules/;
-    the UI layer stays thin and delegates to services.
-  - Lazy loading: heavy models (YOLO, EasyOCR) load only when first
-    needed and are cached in memory for reuse.
-  - CPU-first: default inference settings target a laptop without a GPU.
-  - Local-only: no network calls at request time (model download happens
-    once, on first use, and is documented).
-  - Testable: pure functions (position analysis, graph algorithms,
-    announcement logic) are separated from I/O and UI.
+  - Offline first: no cloud AI APIs, no analytics, no accounts.
+  - Local CPU inference with lazy model loading and caching.
+  - Modular: UI code calls service modules; service modules know nothing
+    about Streamlit and are unit-testable.
+  - Explicit states: loading, success, empty, warning, error. Empty is
+    never presented as an error.
+  - Honest limitations: confidence is not safety, image position is not
+    physical space, and relative depth is not metres.
 
-2. MODULE RESPONSIBILITIES
---------------------------
+2. COMPONENTS
+-------------
   app.py
-      Streamlit entry point. Owns page routing, session state, and calls
-      into modules/ and ui/. Contains no detection/OCR/graph logic.
+      Streamlit entry point. Page routing, session state, and calls into
+      modules/ and ui/. Contains no detection, OCR, or graph logic.
 
   modules/object_detection.py
-      Wraps Ultralytics YOLO (yolo11n nano, AGPL-3.0, COCO-80 classes).
-      Loads the model lazily on first use and caches it in a module-level
-      cache (never reloaded per interaction). Runs CPU inference
-      (imgsz 640, device="cpu"), then returns a structured result:
-      detections [{label, confidence, bbox}], an annotated PNG preview,
-      image size, inference time in ms, and an error field. Pure helpers
-      (filter_by_confidence, clamp_bbox, format_label) are separated for
-      unit testing without a model. Weights download once to
-      models/yolo11n.pt on first use, then work offline. Knows nothing
-      about the UI.
+      Ultralytics YOLO11n (COCO-80, CPU). Lazy loading, module-level cache,
+      a shared inference lock for concurrent camera/briefing requests, and
+      structured DetectionResult output with optional annotation. Pure
+      helpers (confidence filtering, box clamping) are tested without a
+      model. Weights: models/yolo11n.pt.
 
   modules/open_vocabulary.py
-      Wraps YOLO-World (yolov8s-worldv2, ~25 MB, AGPL-3.0) for text-prompt
-      detection of accessible-navigation classes (door, stairs, ramp,
-      elevator, handrail, ...). Parses/dedupes prompts (max 30), applies
-      set_classes only when the prompt set changes, and reuses the
-      detection dataclasses and annotation helper. Scores run lower than
-      fixed-class YOLO; failures are returned in result.error while the
-      app stays usable. Weights download once to models/.
+      YOLO-World v2 for free-text prompts (door, stairs, ramp, etc.).
+      Parses and de-duplicates prompts (max 30) and applies set_classes
+      only when the prompt set changes. Scores are lower than fixed-class
+      detection; failures stay in result.error while the app remains
+      usable. Weights: models/yolov8s-worldv2.pt plus a CLIP text encoder
+      in weights/clip/.
 
   modules/depth_estimation.py
       Optional relative proximity. Lazy-loads Depth Anything V2 Small via
-      transformers (CPU, ~100 MB one-time download), interpolates the
-      predicted depth to image size, and maps each detection's mean
-      normalized depth to a band (very close / close / mid-distance /
-      far). Explicitly relative within one image - never metres. A
-      failure returns a warning string and never discards detections.
-
-  modules/scene_tracker.py
-      Pure change-detection engine for camera auto-briefing. Detections
-      are keyed by label + coarse 3x3 screen position. New objects are
-      confirmed after N consecutive observations; gone objects are
-      reported after N consecutive misses; unconfirmed flashes are
-      ignored. Produces a ChangeReport whose summary is both spoken and
-      rendered as text.
+      transformers (CPU), interpolates predicted depth to image size, and
+      maps each detection to a band (very close / close / mid-distance /
+      far). Relative within one image only; a failure returns a warning
+      and never discards detections.
 
   modules/rubiks_detector.py
-      Classical OpenCV heuristic for Rubik's cube faces (no training).
-      Builds a saturated-colour mask, takes the convex hull of the
-      largest valid quadrilateral (falling back to minAreaRect),
-      warps it to 300x300, classifies the nine tile centres by HSV
-      colour vote, and scores the pattern (>=7/9 tiles, >=3 distinct
-      colours, score >=0.55). Emits a Detection with source
-      "color-grid". Explicitly misses solved single-colour faces.
+      Classical OpenCV heuristic for Rubik's cube faces. Builds a
+      saturated-colour mask, takes the convex hull of a valid
+      quadrilateral (or its minimum-area rectangle), warps it to 300x300,
+      and classifies the nine tile centres by HSV vote. Requires at least
+      seven classified tiles, three distinct colours, and a pattern score
+      of 0.55. Emits a Detection with source "color-grid". Solved
+      single-colour faces are rejected by design.
+
+  modules/scene_tracker.py
+      Pure change detection for camera auto-briefing. Objects are keyed
+      by label plus a coarse 3x3 screen region. New objects must be seen
+      in consecutive updates before being announced; gone objects are
+      reported after consecutive misses. Unconfirmed flashes are ignored.
+      Output is a text summary that is also spoken.
 
   modules/position_analysis.py
-      Pure functions. Maps a bounding box to coarse screen-relative
-      position: horizontal (left / center / right) and vertical
-      (upper / middle / lower), classified by box centre against image
-      thirds. Returns cautious phrasing strings ("appears on the left
-      side of the image") and never distance or safety claims.
+      Pure functions mapping a bounding box to coarse image-relative
+      position (left / center / right and optionally upper / middle /
+      lower). Never claims physical distance or safety.
 
   modules/announcement_manager.py
-      Pure logic. Prioritizes detections (confidence + a small
-      usefulness boost for classes like "person"), caps the spoken list
-      (default 4 items), and builds concise phrases per object plus a
-      summary. Also provides RepetitionGuard, a cooldown-based
-      deduplication guard for continuous sources (camera, Phase 5) so
-      the same unchanged object is not announced every frame.
+      Prioritises detections, caps the spoken list, and builds concise
+      cautious phrases. Includes a cooldown guard for continuous sources
+      so unchanged objects are not announced repeatedly.
 
   modules/voice_assistant.py
-      Wraps pyttsx3 (+ eSpeak NG on Linux) for fully offline speech.
-      speak / stop / replay / rate control. Speech runs in a daemon
-      thread (Streamlit scripts must not block); a fresh engine is
-      created per utterance because pyttsx3 engines are not thread-safe.
-      Availability is probed once and cached; if TTS is missing the UI
-      shows the text summary plus an actionable setup hint instead of
-      crashing. Speech is user-triggered only; nothing auto-plays.
+      Offline pyttsx3 + eSpeak NG speech with speak / stop / replay / rate
+      control. Utterances run in a daemon thread; a fresh engine is created
+      per utterance because pyttsx3 engines are not thread-safe. Speech is
+      user-triggered or explicitly enabled; text output always exists.
 
   modules/text_recognition.py
-      Wraps EasyOCR (English). Loaded on demand only: the reader is not
-      created until the user presses "Extract text", then cached for the
-      process lifetime. Returns an explicit result state: error
-      (unreadable image / load failure / OCR failure), is_empty (clean
-      run, no text found - not an error), or success (joined text,
-      per-region confidence, processing time). Weights are cached once
-      by EasyOCR in ~/.EasyOCR (outside the repository). Never runs
-      continuously on video frames.
+      EasyOCR English, loaded only when requested and cached for the
+      process lifetime. Distinguishes "no text found" (empty) from errors
+      and returns per-region confidence. Never runs on camera frames.
 
   modules/camera.py
-      Camera capture helper for the live mode. Deliberate activation
-      only, frame throttling, and guaranteed resource release on stop.
+      Controlled live camera capture. A background daemon thread keeps
+      only the latest frame; activation is deliberate and stop() is
+      idempotent. Detection runs per snapshot or auto-briefing interval.
+      No-device and permission errors produce fallback instructions.
 
-  modules/camera.py
-      Controlled live camera capture (Phase 5). Activation requires a
-      deliberate user action; the app never starts the camera on load.
-      A background daemon thread grabs frames at a modest target FPS
-      (15) and keeps only the latest frame. Capture rate is fully
-      decoupled from inference: detection runs on user-triggered
-      snapshots and (if enabled) the auto-briefing cadence only, and OCR
-      never runs on camera frames. stop() is
-      idempotent and releases the device; the UI also stops the camera
-      on page change. No-device, permission-denied, and device-lost
-      paths produce readable fallback messages pointing to image upload.
+  modules/image_validation.py
+      Pure upload validation: allowed formats, a 10 MB size limit before
+      decoding, and decode checks with actionable messages.
 
-  modules/navigation/graph_data.py
-      Parses and validates the fictional sample building map from
-      assets/sample_maps/sample_building.txt (human-readable "node" and
-      "edge" lines with floor-plan coordinates). Also provides the
-      euclidean heuristic builder, documented as admissible because edge
-      weights equal straight-line endpoint distances.
+  modules/navigation/
+      graph_data.py (sample map parsing and validation), bfs.py, astar.py,
+      route_service.py (route building and comparison metrics). Algorithms
+      are hand-written and unit-tested; matplotlib is used only for maps.
 
-  modules/navigation/bfs.py
-      Hand-written BFS: FIFO deque, visited set via parent pointers,
-      backwards path reconstruction. Minimizes hops, ignores weights.
-      Returns path (or None when unreachable) plus the exploration order.
+  ui/styles.py        Design tokens, global CSS, accessible focus styles.
+  ui/components.py    Shared headers, banners, cards, and status pills.
+  ui/map_view.py      Route-map rendering with label collision avoidance.
 
-  modules/navigation/astar.py
-      Hand-written A* with heapq priority queue: f(n) = g(n) + h(n),
-      settled set, stale-entry skipping, insertion-counter tie-breaking.
-      Uses the admissible euclidean heuristic (zero heuristic supported,
-      i.e. Dijkstra behaviour). Minimizes weighted distance.
+3. DATA FLOW
+------------
+  Image upload
+      Streamlit uploader -> image_validation -> object_detection /
+      open_vocabulary -> optional depth -> optional Rubik's cube check ->
+      results table + annotated preview -> announcement_manager ->
+      voice_assistant.
 
-  modules/navigation/route_service.py
-      Caches the parsed sample graph, runs BFS and/or A*, and converts
-      every outcome (route, unreachable, invalid node, failure) into an
-      explicit RouteResult with cost, hops, explored nodes, and timing
-      for the comparison view.
+  Live camera
+      camera.py thread -> latest frame -> preview fragment (display only)
+      -> manual capture or auto-briefing fragment -> object_detection ->
+      scene_tracker -> change summary -> text log + optional speech.
 
-  ui/components.py, ui/styles.py
-      Shared UI components (status banners, buttons, result cards) and
-      the design tokens (colours, spacing, typography) in one place.
+  Read Text
+      Uploader -> image_validation -> text_recognition (on demand) ->
+      text block, copy/download, speech.
 
-3. DATA FLOW (SCENE ASSISTANT)
-------------------------------
-  Uploaded image -> validation -> OpenCV preprocessing (resize,
-  preserve aspect ratio) -> YOLO inference -> structured detections
-  -> position analysis -> announcement manager (prioritize + concise
-  summary) -> UI result list / annotated preview / text summary
-  -> user-triggered TTS (background thread).
+  Navigation
+      graph_data -> route_service -> bfs/astar -> step table, comparison
+      metrics, and route maps.
 
-4. DATA FLOW (READ TEXT)
-------------------------
-  Uploaded image -> validation -> EasyOCR (loaded on demand) ->
-  extracted text + confidence -> result panel -> user-triggered TTS.
+4. SAFETY AND DEGRADATION
+-------------------------
+  Every optional component fails independently: missing TTS falls back to
+  text, missing camera falls back to upload, a failed model download shows
+  an actionable error, and depth or open-vocabulary failures keep existing
+  detections. All pages carry the project disclaimer where relevant.
 
-5. DATA FLOW (NAVIGATION DEMO)
-------------------------------
-  Sample map file -> graph -> BFS and A* -> route, explored set, cost,
-  timing -> route visualization + comparison table + disclaimer.
-
-6. PLAIN-TEXT ARCHITECTURE DIAGRAM
-----------------------------------
-
-    +---------------------------------------------+
-    |                 app.py (UI)                 |
-    |  Dashboard | Scene | Read Text | Navigation | Settings
-    +----+-----------+-----------+----------+-----+
-         |           |           |          |
-         v           v           v          v
-   +---------+  +----------+  +-------+  +----------+
-   | camera  |  | object   |  | text  |  | route    |
-   | module  |  | detection|  | recog |  | service  |
-   +---------+  +----+-----+  +---+---+  +----+-----+
-                     |            |           |
-                     v            v           v
-               +---------+   +---------+  +----------+
-               | YOLO    |   | EasyOCR |  | bfs.py / |
-               | (cached)|   | (lazy)  |  | astar.py |
-               +---------+   +---------+  +----+-----+
-                     |            |           |
-                     v            v           v
-               +-------------+  +-----+  +------------+
-               | position    |  | TTS |  | graph_data |
-               | analysis +  |  |     |  | + map file |
-               | announcer   |  +-----+  +------------+
-               +-------------+
-
-7. DEPENDENCIES
----------------
-  Python packages (pinned in requirements.txt):
-    streamlit, ultralytics (YOLO), opencv-python, pyttsx3, easyocr,
-    pillow, networkx, pytest
-
-  System packages (documented in docs/SETUP_GUIDE.txt):
-    espeak-ng (offline speech backend on Linux)
-
-  Model files:
-    YOLO nano weights are downloaded automatically on first inference
-    and cached locally (see models/README.txt). They are NOT committed
-    to the repository.
-
-8. ERROR HANDLING POLICY
-------------------------
-  Exceptions are caught at module boundaries and converted into
-  actionable, user-facing states (error message + suggested fix).
-  No broad silent exception handling. Missing optional components
-  (camera, TTS, OCR model) degrade the app rather than crash it.
+5. PRIVACY AND SECURITY
+-----------------------
+  - No data is written to disk by the app; images and text stay in memory.
+  - Uploads are limited to PNG/JPEG, 10 MB, and 40 megapixels; validation
+    happens before any full-resolution processing.
+  - Streamlit XSRF protection is enabled and upload size is capped in
+    .streamlit/config.toml; detailed server errors are hidden from clients.
+  - No third-party fonts, scripts, or analytics are loaded at runtime.
+  - Model downloads happen once; afterwards the app can run offline.
+  - A public deployment has no built-in authentication; do not upload
+    sensitive images to a shared instance.

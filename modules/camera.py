@@ -1,6 +1,6 @@
 """Controlled camera capture for AccessAble AI.
 
-Design (spec 3.1, 11, and Phase 5 requirements):
+Design:
   - Activation requires a deliberate user action; the app never starts
     the camera on page load.
   - A background daemon thread grabs frames at a modest target FPS

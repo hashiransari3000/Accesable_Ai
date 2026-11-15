@@ -81,8 +81,9 @@ def privacy_notice() -> None:
     st.markdown(
         '<div class="aa-muted" style="display:flex;gap:7px;align-items:center;">'
         f'{svg_icon("shield", colour="#0F766E", size=15)}'
-        "<span><strong>Privacy:</strong> your image is processed locally on "
-        "this machine. Nothing is uploaded, stored, or transmitted.</span>"
+        "<span><strong>Privacy:</strong> your image is processed in memory "
+        "and never stored or shared. On a public instance, processing "
+        "happens on the hosting server.</span>"
         "</div>",
         unsafe_allow_html=True,
     )

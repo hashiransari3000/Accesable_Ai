@@ -1,4 +1,4 @@
-"""Tests for the upload validation logic (TEST_PLAN items M2-M4, M5-ish)."""
+"""Tests for the upload validation logic."""
 
 import io
 
@@ -8,6 +8,7 @@ from PIL import Image
 from modules.image_validation import (
     DEFAULT_MAX_BYTES,
     check_decodable,
+    check_dimensions,
     check_extension,
     check_size,
     validate_upload,
@@ -64,6 +65,19 @@ def test_png_and_jpeg_decode():
 def test_corrupted_bytes_rejected():
     msg = check_decodable(b"not an image at all")
     assert msg is not None and "could not be opened" in msg
+
+
+def test_dimensions_within_limit_pass():
+    assert check_dimensions(4000, 3000) is None
+
+
+def test_oversized_pixel_count_rejected():
+    msg = check_dimensions(10_000, 10_000)
+    assert msg is not None and "megapixels" in msg
+
+
+def test_invalid_dimensions_rejected():
+    assert check_dimensions(0, 100) is not None
 
 
 # ---- Combined order --------------------------------------------------------

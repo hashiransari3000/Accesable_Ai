@@ -12,7 +12,7 @@ yolo11n.pt
              by Ultralytics under the same licence terms.
   After the first download, detection works fully offline.
 
-EasyOCR models (Phase 4)
+EasyOCR models
   Model:     English detection (craft_mlt_25k, ~80 MB) + recognition
              (english_g2, ~15 MB)
   Download:  automatic, once, on the first "Extract text" use
@@ -20,7 +20,7 @@ EasyOCR models (Phase 4)
              NOT inside this repository - therefore never committed)
   After the first download, OCR works fully offline.
 
-yolov8s-worldv2.pt (Phase 9)
+yolov8s-worldv2.pt
   Model:     YOLO-World v2 small - open-vocabulary detection (text prompts)
   Size:      ~24.7 MB
   Download:  automatic, once, from Ultralytics official assets on the
@@ -32,7 +32,7 @@ yolov8s-worldv2.pt (Phase 9)
   Licence:   AGPL-3.0 (Ultralytics); CLIP weights via ultralytics assets
   After the first download, open-vocabulary detection works offline.
 
-Depth Anything V2 Small (Phase 9, optional)
+Depth Anything V2 Small (optional)
   Model:     depth-anything/Depth-Anything-V2-small-hf
   Download:  automatic, once, via Hugging Face transformers on the first
              "Estimate relative proximity" run (~100 MB)

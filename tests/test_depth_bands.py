@@ -1,4 +1,4 @@
-"""Tests for relative proximity bands (Phase 9).
+"""Tests for relative proximity bands.
 
 The depth model itself is not exercised here (heavy download); the pure
 band-mapping logic and failure paths are.

@@ -1,4 +1,4 @@
-"""Tests for the camera module with a stubbed cv2 (TEST_PLAN camera matrix).
+"""Tests for the camera module with a stubbed cv2.
 
 cv2 hardware cannot exist in CI; these tests stub cv2.VideoCapture to
 verify lifecycle, throttling, error paths, and resource cleanup (M16-M18).

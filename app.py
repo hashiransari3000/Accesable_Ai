@@ -5,9 +5,9 @@ ui/. Routing is a simple sidebar radio (predictable, keyboard-friendly).
 
 Pages:
   Dashboard            - quick start, feature cards, readiness, notices
-  Scene Assistant      - image upload workflow (detection lands Phase 2)
-  Read Text            - OCR (lands Phase 4)
-  Indoor Navigation    - BFS / A* demo (lands Phase 6)
+  Scene Assistant      - upload / camera detection, text and depth checks
+  Read Text            - local OCR with read-aloud
+  Indoor Navigation    - BFS / A* demo on a fictional map
   Settings & Help      - preferences, privacy, limitations
 """
 
@@ -121,7 +121,7 @@ def render_sidebar() -> str:
             '<div class="aa-apptag" style="display:flex;gap:8px;'
             'align-items:flex-start;line-height:1.45;">'
             f'{components.svg_icon("shield", colour="#5EEAD4", size=16)}'
-            "<span>All processing stays on this machine.</span></div>",
+            "<span>Images are processed in memory and never stored.</span></div>",
             unsafe_allow_html=True,
         )
         st.markdown(
@@ -138,7 +138,7 @@ def render_sidebar() -> str:
 def render_dashboard() -> None:
     components.page_header(
         "Welcome to AccessAble AI",
-        "Understand a scene, read visible text, and explore indoor routes - locally and offline.",
+        "Understand a scene, read visible text, and explore indoor routes - no cloud AI APIs.",
     )
     components.safety_notice()
 
@@ -204,7 +204,7 @@ def render_dashboard() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scene Assistant (Phase 1: upload workflow; Phase 2 adds real detection)
+# Scene Assistant
 # ---------------------------------------------------------------------------
 def _load_sample(path: str) -> None:
     with open(path, "rb") as fh:
@@ -229,7 +229,7 @@ def render_scene_assistant() -> None:
     components.page_header(
         "Scene Assistant",
         "Detect common objects in an uploaded image or a live camera snapshot, "
-        "then hear a concise spoken summary. Everything runs locally.",
+        "then hear a concise spoken summary. Processing stays in memory.",
     )
     components.privacy_notice()
 
@@ -441,13 +441,13 @@ def _render_upload_mode() -> None:
                 hint = (
                     "Loading open-vocabulary model (one-time ~380 MB "
                     "download)..." if first_run
-                    else "Searching for your objects locally..."
+                    else "Searching for your objects..."
                 )
             else:
                 first_run = not od.is_model_loaded()
                 hint = (
                     "Loading model (one-time ~5 MB download)..." if first_run
-                    else "Detecting objects locally..."
+                    else "Detecting objects..."
                 )
             with st.spinner(hint):
                 if use_open_vocab:
@@ -577,7 +577,7 @@ def _render_detection_results(
             "open-vocabulary model depends on your prompt wording.",
         )
 
-    # Annotated preview with a hide-overlay option (avoid clutter, spec 3.1)
+    # Annotated preview with an optional overlay to reduce clutter
     if result.annotated_png and result.detections:
         show_boxes = st.checkbox(
             "Show bounding boxes on preview", value=True,
@@ -590,7 +590,7 @@ def _render_detection_results(
                 width="stretch",
             )
 
-    # Structured detection list, now with relative position (Phase 3)
+    # Structured detection list with image-relative position
     if result.detections:
         has_proximity = any(d.proximity for d in result.detections)
         has_heuristic = any(d.source != "model" for d in result.detections)
@@ -632,7 +632,7 @@ def _render_detection_results(
             "legitimately produce no detections."
         )
 
-    # -- Spoken summary (Phase 3): text always visible, speech user-triggered
+    # -- Spoken summary: text always visible, speech user-triggered
     _render_speech_controls(result, prefix="upload")
 
 
@@ -700,7 +700,7 @@ def _render_speech_controls(
 
 
 # ---------------------------------------------------------------------------
-# Live camera mode (Phase 5) - deliberate activation, snapshot inference
+# Live camera mode - deliberate activation, snapshot and briefing inference
 # ---------------------------------------------------------------------------
 def _stop_camera() -> None:
     """Stop the camera and drop its state. Always safe to call."""
@@ -731,8 +731,8 @@ def _encode_frame_jpeg(frame, quality: int = 85) -> bytes | None:
 
 def render_camera_section() -> None:
     st.caption(
-        "Camera frames are processed locally in memory and are never saved, "
-        "uploaded, or transmitted. The camera stays OFF until you press Start."
+        "Camera frames are processed in memory and are never saved or "
+        "shared. The camera stays OFF until you press Start."
     )
 
     cam_inst = st.session_state.get(CAMERA)
@@ -966,7 +966,7 @@ def _render_camera_results() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Read Text (Phase 4: real local OCR)
+# Read Text (local OCR)
 # ---------------------------------------------------------------------------
 def _load_ocr_sample(path: str) -> None:
     with open(path, "rb") as fh:
@@ -1063,7 +1063,7 @@ def render_read_text() -> None:
         hint = (
             "Loading OCR model (one-time ~85 MB download)..."
             if first_run
-            else "Reading text locally..."
+            else "Reading text..."
         )
         with st.spinner(hint):
             result = tr.extract_text(image_bytes)
@@ -1116,7 +1116,7 @@ def _render_ocr_results(current_image_bytes: bytes) -> None:
         for i, region in enumerate(result.regions, 1):
             st.markdown(f"- Region {i}: **{region.text}** ({region.confidence * 100:.0f}%)")
 
-    # Read-aloud reuses the shared voice assistant (Phase 3 controls)
+    # Read-aloud reuses the shared voice assistant
     tts_ok = _render_voice_settings()
     b1, b2, _ = st.columns([1, 1, 2])
     speak_pressed = b1.button(
@@ -1148,7 +1148,7 @@ def _render_ocr_results(current_image_bytes: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Indoor Navigation Demo (Phase 6) - simulation on a fictional sample map
+# Indoor Navigation Demo - simulation on a fictional sample map
 # ---------------------------------------------------------------------------
 def render_navigation() -> None:
     components.page_header(
@@ -1393,9 +1393,11 @@ def render_settings() -> None:
 
     st.subheader("Privacy")
     st.markdown(
-        "Every image you upload is processed locally. The app never uploads, "
-        "stores, or transmits your images, OCR text, or any other data. There "
-        "are no accounts, analytics, or telemetry."
+        "Every image you upload is processed in memory by the app. It never "
+        "saves, sells, or shares your images, OCR text, or voice data. There "
+        "are no accounts, analytics, or telemetry. On a public deployment, "
+        "processing happens on the hosting server - do not upload sensitive "
+        "images to a shared instance."
     )
 
     st.subheader("Known limitations")
@@ -1418,7 +1420,7 @@ def main() -> None:
     page = render_sidebar()
 
     # Resource cleanup on page change: leaving Scene Assistant stops the
-    # camera (easy reversal + guaranteed release, spec Phase 5), and any
+    # camera (easy reversal + guaranteed release), and any
     # playing speech stops too - nothing continues behind the user's back.
     if st.session_state.get(LAST_PAGE) not in (None, page):
         _stop_camera()

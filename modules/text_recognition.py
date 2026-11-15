@@ -1,6 +1,6 @@
 """Local OCR text recognition for AccessAble AI.
 
-Wraps EasyOCR, loaded ONLY on demand (spec 3.4): the reader (and its
+Wraps EasyOCR, loaded only on demand: the reader (and its
 ~85 MB of model weights, cached once by EasyOCR into ~/.EasyOCR) is not
 created until the user actually requests text reading. The reader is
 then cached for the process lifetime and reused.

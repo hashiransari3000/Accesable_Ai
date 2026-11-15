@@ -1,4 +1,4 @@
-"""Tests for the object detection module (TEST_PLAN D1-D5).
+"""Tests for the object detection module.
 
 Pure post-processing is tested directly; model-dependent paths are
 exercised with a stub injected into the module cache. A real-inference

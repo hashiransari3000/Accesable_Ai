@@ -1,4 +1,4 @@
-"""Tests for the OCR module (TEST_PLAN O1-O4), stubbing the heavy reader."""
+"""Tests for the OCR module with a stubbed heavy reader."""
 
 import io
 import sys

@@ -1,4 +1,4 @@
-"""Tests for relative position analysis (TEST_PLAN P1-P7)."""
+"""Tests for relative position analysis."""
 
 
 from modules.object_detection import Detection

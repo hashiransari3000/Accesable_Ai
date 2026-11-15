@@ -1,4 +1,4 @@
-"""Navigation algorithm tests (TEST_PLAN N1-N8)."""
+"""Navigation algorithm tests."""
 
 import pytest
 
