@@ -81,10 +81,20 @@ Do not rely on this app for safe mobility or obstacle avoidance."
 
 7. NAVIGATION DEMO LIMITATIONS
 ------------------------------
-  - The indoor map is a fixed, fictional sample. The system does not know
-    the user's live location.
-  - It does not detect stairs, doors, temporary obstacles, moving people,
-    or accessible paths in a real building.
+  - The indoor map is a fixed, fictional two-floor sample. The system does
+    not know the user's live location and does not track movement.
+  - It does not detect stairs, doors, lifts, temporary obstacles, moving
+    people, crowding, or accessible paths in a real building.
+  - The Step-free profile only excludes edges tagged as stairs in the
+    sample graph. It is not accessibility certification, does not verify
+    lift operation or doorway widths, and cannot promise a physically
+    step-free route. The Quiet profile only penalises simulated crowd
+    values; it says nothing about real noise or crowding.
+  - Closure scenarios and map clicks are simulated. They do not reflect
+    real conditions and must not be used to decide whether a real route
+    is open.
+  - Turn-by-turn text and speech describe the fictional path only. They
+    are not live guidance and must never be followed in a real building.
   - BFS/A* outputs are algorithm demonstrations on the supplied graph,
     never live guidance. Never described as safe real-world navigation.
 
@@ -123,3 +133,8 @@ Do not rely on this app for safe mobility or obstacle avoidance."
   - The Rubik's cube check must never be described as 100% accurate or
     as a trained AI model; call it a heuristic colour-grid check.
   - Always keep the visual equivalent of spoken information available.
+  - The Step-free profile must be called a simulated preference on the
+    sample graph, never a certified or guaranteed accessible route. The
+    Quiet profile is not a noise guarantee.
+  - Map clicks, closure scenarios, and walk-through steps are simulation
+    controls, never evidence that a real segment is open, closed, or safe.

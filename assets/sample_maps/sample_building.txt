@@ -1,50 +1,98 @@
 # AccessAble AI - sample indoor map (FICTIONAL, for algorithm demo only)
 #
 # Format (plain text, human-readable):
-#   node <id> | <display name> | <x> | <y>     coordinates in metres, floor plan
-#   edge <id_a> <id_b> | <weight>             weight = walking distance in metres
-#   blank lines and lines starting with '#' are ignored
+#   node <id> | <name> | <x> | <y> | <floor> | <kind> | <tags>
+#   edge <a> <b> | <weight> | <type> | <width_m> | <crowd>
 #
-# Edge weights are the straight-line distance between the two endpoints
-# (rounded up). This guarantees the A* euclidean heuristic is ADMISSIBLE:
-# it never overestimates the true path cost (see modules/navigation/astar.py).
+#   floor: integer, 0 = ground, 1 = upper
+#   kind:  entrance, room, corridor, lift, stairs, facility, exit
+#   type:  corridor, stairs, lift, door, ramp
+#   width: metres (simulated); crowd: 0.0 quiet .. 1.0 packed
+#   tags:  comma-separated labels, e.g. accessible_toilet,quiet
 #
-# This map does NOT represent any real building. It does not model stairs,
-# doors, lift access, temporary obstacles, or step-free routes. It is used
-# purely to demonstrate BFS and A* path-finding on a graph.
+# Same-floor weights are at least the straight-line distance between the
+# endpoints, so the A* euclidean heuristic remains ADMISSIBLE (it ignores
+# floor changes, which only makes it more cautious). See
+# modules/navigation/graph_data.py.
+#
+# This map does NOT represent any real building. It does not model real
+# stairs, doors, lifts, obstacles, or accessible routes. It exists purely
+# to demonstrate BFS, A* and accessibility-aware route profiles.
 
 # ---- ground floor: sample community centre (fictional) ----
-node entrance | Main Entrance | 10 | 0
-node main_hall | Main Hall | 10 | 8
-node corridor_a | Corridor A (West) | 4 | 8
-node reading_corner | Reading Corner | 0 | 14
-node corridor_b | Corridor B (North-West) | 4 | 14
-node library | Library | 0 | 20
-node storage | Storage Room | 4 | 20
-node staff_room | Staff Room | 10 | 20
-node computer_lab | Computer Lab | 10 | 14
-node corridor_c | Corridor C (East) | 16 | 14
-node reception | Reception Desk | 16 | 8
-node science_lab | Science Lab | 22 | 14
-node cafe | Cafeteria | 22 | 8
+node entrance | Main Entrance | 10 | 0 | 0 | entrance | door
+node stairs_g | Stairs (Ground) | 7 | 2 | 0 | stairs |
+node lift_g | Lift (Ground) | 14 | 2 | 0 | lift |
+node main_hall | Main Hall | 10 | 8 | 0 | room | landmark,busy
+node corridor_a | Corridor A (West) | 4 | 8 | 0 | corridor |
+node reception | Reception Desk | 16 | 8 | 0 | room |
+node reading_corner | Reading Corner | 0 | 14 | 0 | room | quiet
+node corridor_b | Corridor B (North-West) | 4 | 14 | 0 | corridor |
+node library | Library | 0 | 20 | 0 | room |
+node storage | Storage Room | 4 | 20 | 0 | room |
+node staff_room | Staff Room | 10 | 20 | 0 | room |
+node computer_lab | Computer Lab | 10 | 14 | 0 | room |
+node corridor_c | Corridor C (East) | 16 | 14 | 0 | corridor |
+node science_lab | Science Lab | 22 | 14 | 0 | room |
+node cafe | Cafeteria | 22 | 8 | 0 | facility | cafe
+node accessible_toilet_g | Accessible Toilet (Ground) | 14 | 20 | 0 | facility | accessible_toilet
+node annex_lobby | Annex Lobby | 30 | 0 | 0 | room |
+node annex_office | Annex Office | 30 | 6 | 0 | room |
 
-# ---- separate wing with NO connecting corridor (for unreachable tests) ----
-node annex_lobby | Annex Lobby | 30 | 0
-node annex_office | Annex Office | 30 | 6
+# ---- upper floor (fictional) ----
+node stairs_u | Stairs (Upper) | 7 | 2 | 1 | stairs |
+node lift_u | Lift (Upper) | 14 | 2 | 1 | lift |
+node upper_hall | Upper Hall | 10 | 8 | 1 | corridor |
+node quiet_room | Quiet Room | 0 | 8 | 1 | facility | quiet
+node archive | Archive | 0 | 14 | 1 | room |
+node studio | Studio | 4 | 14 | 1 | room |
+node research_lab | Research Lab | 10 | 20 | 1 | room |
+node accessible_toilet_u | Accessible Toilet (Upper) | 14 | 20 | 1 | facility | accessible_toilet
+node east_hall | East Hall | 16 | 8 | 1 | corridor |
+node meeting_room | Meeting Room | 22 | 8 | 1 | room |
+node kitchenette | Kitchenette | 22 | 14 | 1 | facility |
 
-edge entrance main_hall | 8
-edge main_hall corridor_a | 6
-edge corridor_a reading_corner | 8
-edge reading_corner corridor_b | 4
-edge corridor_b library | 8
-edge corridor_b storage | 6
-edge storage staff_room | 6
-edge staff_room computer_lab | 6
-edge corridor_b computer_lab | 6
-edge computer_lab corridor_c | 6
-edge corridor_c reception | 6
-edge reception main_hall | 6
-edge corridor_c science_lab | 6
-edge science_lab cafe | 6
-edge cafe reception | 6
-edge annex_lobby annex_office | 6
+# ---- ground-floor connections ----
+edge entrance main_hall | 8 | corridor | 3.0 | 0.35
+edge entrance stairs_g | 3.7 | corridor | 2.0 | 0.20
+edge entrance lift_g | 4.5 | corridor | 2.2 | 0.15
+edge stairs_g main_hall | 6.8 | corridor | 2.0 | 0.25
+edge lift_g main_hall | 7.3 | corridor | 2.4 | 0.20
+edge main_hall corridor_a | 6 | corridor | 2.6 | 0.50
+edge main_hall reception | 6 | corridor | 2.6 | 0.55
+edge corridor_a reading_corner | 8 | corridor | 1.4 | 0.10
+edge reading_corner corridor_b | 4 | corridor | 1.5 | 0.10
+edge corridor_b library | 8 | corridor | 1.3 | 0.10
+edge corridor_b storage | 6 | corridor | 1.8 | 0.15
+edge storage staff_room | 6 | corridor | 1.8 | 0.20
+edge staff_room computer_lab | 6 | corridor | 2.0 | 0.30
+edge corridor_b computer_lab | 6 | corridor | 2.0 | 0.20
+edge computer_lab corridor_c | 6 | corridor | 2.2 | 0.30
+edge corridor_c reception | 6 | corridor | 2.2 | 0.40
+edge reception cafe | 6 | corridor | 2.4 | 0.35
+edge corridor_c science_lab | 6 | corridor | 2.0 | 0.20
+edge science_lab cafe | 6 | corridor | 2.0 | 0.20
+edge staff_room accessible_toilet_g | 4 | door | 1.2 | 0.05
+edge corridor_c accessible_toilet_g | 6.4 | corridor | 1.4 | 0.05
+edge corridor_a corridor_b | 6 | stairs | 1.2 | 0.10
+edge lift_g reception | 10.5 | corridor | 1.2 | 0.05
+edge annex_lobby annex_office | 6 | corridor | 1.6 | 0.00
+
+# ---- vertical connections ----
+edge stairs_g stairs_u | 5 | stairs | 1.2 | 0.10
+edge lift_g lift_u | 9 | lift | 1.1 | 0.05
+
+# ---- upper-floor connections ----
+edge stairs_u upper_hall | 6.8 | corridor | 1.8 | 0.20
+edge lift_u upper_hall | 7.3 | corridor | 2.2 | 0.20
+edge upper_hall quiet_room | 10 | corridor | 1.5 | 0.05
+edge quiet_room archive | 6 | corridor | 1.3 | 0.05
+edge archive studio | 4 | corridor | 1.4 | 0.10
+edge studio research_lab | 8.5 | corridor | 1.6 | 0.10
+edge studio upper_hall | 8.5 | corridor | 1.2 | 0.10
+edge research_lab accessible_toilet_u | 4 | door | 1.2 | 0.05
+edge accessible_toilet_u east_hall | 12.2 | corridor | 1.5 | 0.15
+edge east_hall upper_hall | 6 | corridor | 2.0 | 0.45
+edge east_hall meeting_room | 6 | corridor | 2.0 | 0.20
+edge east_hall kitchenette | 8.5 | corridor | 1.8 | 0.20
+edge meeting_room kitchenette | 6 | corridor | 1.8 | 0.15

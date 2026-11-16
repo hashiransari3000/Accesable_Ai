@@ -33,8 +33,8 @@ pyttsx3==2.99               # requires the espeak-ng system package on Linux
 # OCR, lazy-loaded at runtime
 easyocr==1.7.2              # pulls scipy, scikit-image, shapely, pyclipper
 
-# Route-map rendering for the navigation demo (algorithms are hand-written)
-matplotlib==3.11.2
+# Interactive route-map rendering for the navigation demo
+plotly==7.1.0
 
 # Testing
 pytest==9.2.0

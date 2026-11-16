@@ -14,6 +14,7 @@ Pages:
 from __future__ import annotations
 
 import io
+import time
 
 import streamlit as st
 from PIL import Image
@@ -29,7 +30,11 @@ from modules import scene_tracker as tracker
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
 from modules.image_validation import validate_upload
+from modules.navigation import instructions as nav_steps
+from modules.navigation import profiles as nav_profiles
 from modules.navigation import route_service as nav
+from modules.navigation import scenarios as nav_scenarios
+from modules.navigation.graph_data import floor_label as nav_floor_label
 from modules.position_analysis import describe_position
 from ui import browser_speech, components, map_view, styles
 
@@ -41,7 +46,7 @@ st.set_page_config(
 )
 styles.inject_global_css()
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 PAGES = [
     "Dashboard",
@@ -84,6 +89,26 @@ CAMERA_BRIEF_SPEAK = "brief_speak"
 BRIEF_LOG = "brief_log"           # list[str], newest first
 BRIEF_MEMORY = "brief_memory"     # (camera instance, tracker.SceneMemory)
 LAST_PAGE = "last_active_page"
+
+NAV_START = "nav_start"
+NAV_DEST = "nav_dest"
+NAV_PROFILE = "nav_profile"
+NAV_SPEED = "nav_speed"
+NAV_SCENARIO = "nav_scenario"
+NAV_CLOSURES = "nav_closures"
+NAV_CLICK_MODE = "nav_click_mode"
+NAV_MAP_EPOCH = "nav_map_epoch"
+NAV_PENDING = "nav_pending"
+NAV_STEP = "nav_step"
+NAV_STEP_SIG = "nav_step_sig"
+NAV_STEP_COUNT = "nav_step_count"
+NAV_PLAYING = "nav_playing"
+NAV_LAST_ADVANCE = "nav_last_advance"
+NAV_SPEAK_STEPS = "nav_speak_steps"
+NAV_LAST_SPOKEN = "nav_last_spoken"
+NAV_SHOW_EXPLORED = "nav_show_explored"
+NAV_SHOW_LABELS = "nav_show_labels"
+NAV_FLASH = "nav_flash"
 
 
 def _bump_epoch(key: str) -> None:
@@ -180,8 +205,10 @@ def render_dashboard() -> None:
         components.feature_card(
             "map",
             "Indoor Navigation Demo",
-            "A clearly fictional sample map used to demonstrate BFS and A* "
-            "route planning. Simulation only - never live guidance.",
+            "Explore a fictional two-floor map: click to set start or "
+            "destination, close segments, compare Fastest, Step-free, and "
+            "Quiet profiles, and follow a spoken walk-through. Simulation "
+            "only - never live guidance.",
         )
 
     st.subheader("System readiness")
@@ -1298,170 +1325,327 @@ def _render_ocr_results(current_image_bytes: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Indoor Navigation Demo - simulation on a fictional sample map
+# Indoor Navigation Demo - simulation on a fictional two-floor map
 # ---------------------------------------------------------------------------
-def render_navigation() -> None:
-    components.page_header(
-        "Indoor Navigation Demo",
-        "Explore BFS and A* route planning on a fictional sample building map.",
-    )
-    components.safety_notice()  # mandatory on the navigation page
-    components.status_banner(
-        "warning",
-        "Simulation only. This page uses a FIXED FICTIONAL MAP - it does "
-        "not know your live location and cannot detect stairs, doors, "
-        "temporary obstacles, or step-free routes. It is an algorithm "
-        "demonstration, not live guidance.",
-    )
+NAV_CLICK_MODES = ("Set start", "Set destination", "Close/open segment")
 
-    graph = nav.get_graph()
-    names = graph.ids()
 
-    c1, c2 = st.columns(2)
-    with c1:
-        start = st.selectbox(
-            "Start location", names,
-            index=names.index("entrance"),
-            format_func=graph.display_name,
-        )
-    with c2:
-        # default destination: science_lab (far corner)
-        dest = st.selectbox(
-            "Destination", names,
-            index=names.index("science_lab"),
-            format_func=graph.display_name,
-        )
+def _nav_label(graph, node_id: str) -> str:
+    return f"{graph.display_name(node_id)} · {nav_floor_label(graph.floor(node_id))}"
 
-    algorithm = st.radio(
-        "Algorithm", ["BFS (fewest hops)", "A* (shortest distance)", "Compare both"],
-        horizontal=True,
-        help="BFS minimizes the number of hops; A* minimizes walking "
-        "distance using an admissible straight-line heuristic.",
-    )
 
-    if st.button("Find route", type="primary"):
-        st.session_state["nav_request"] = (start, dest, algorithm)
-        st.rerun()
+def _nav_speak(text: str) -> None:
+    if runtime.is_hosted():
+        browser_speech.speak(text, st.session_state.get("speech_rate", vas.DEFAULT_RATE))
+    elif vas.is_available():
+        vas.assistant.speak(text)
 
-    request = st.session_state.get("nav_request")
-    if not request:
+
+def _nav_set_profile(profile_key: str) -> None:
+    st.session_state[NAV_PROFILE] = profile_key
+    st.session_state[NAV_PLAYING] = False
+
+
+def _render_nav_guide_panel(
+    result: nav.RouteResult,
+    baseline: nav.RouteResult | None,
+    steps: list,
+    current_index: int,
+    profile_key: str,
+) -> None:
+    """Keep the walk-through and its controls next to the map."""
+    with st.container(border=True):
+        st.subheader("Walk-through")
         st.caption(
-            "Pick a start and destination, then press Find route. The map "
-            "and its format are documented in assets/sample_maps/."
-        )
-        return
-
-    if request != (start, dest, algorithm):
-        components.status_banner(
-            "warning",
-            "Selections changed since this route was calculated. Press "
-            "Find route to update the results below.",
+            "Simulated step by step on the fictional map. Text always "
+            "matches the spoken version."
         )
 
-    start, dest, algorithm = request
-    if algorithm == "Compare both":
-        bfs_result, astar_result = nav.compare_routes(graph, start, dest)
-        _render_route_result(bfs_result, graph, with_map=False)
-        st.divider()
-        _render_route_result(astar_result, graph, with_map=False)
-        _render_comparison(bfs_result, astar_result)
-        _render_comparison_maps(bfs_result, astar_result, graph)
-    else:
-        algo_key = "BFS" if algorithm.startswith("BFS") else "A*"
-        _render_route_result(nav.run_route(graph, start, dest, algo_key), graph)
+        if result.error:
+            st.error(result.error)
+            return
+
+        if result.unreachable:
+            st.warning(
+                result.unreachable_reason
+                or "No route exists under the current simulated constraints."
+            )
+            if (
+                profile_key != "fastest"
+                and baseline is not None
+                and baseline.found
+            ):
+                st.caption(
+                    "The Fastest profile still has a route, but it may use "
+                    "stairs or crowded segments."
+                )
+                st.button(
+                    "Switch to Fastest profile",
+                    key="nav_use_fastest",
+                    on_click=_nav_set_profile,
+                    args=("fastest",),
+                    width="stretch",
+                )
+            else:
+                st.caption(
+                    "Choose another profile, reopen a segment, or pick a "
+                    "different destination."
+                )
+            return
+
+        step = steps[current_index]
+        st.markdown(
+            f"**{result.cost:.0f} m · {nav_steps.format_duration(result.eta_s)}"
+            f" · {result.stairs_count} stairs · {result.lift_count} lift uses**"
+        )
+        st.caption(
+            f"Step {current_index + 1} of {len(steps)} · "
+            f"{nav_floor_label(step.floor)}"
+        )
+        st.markdown(f"#### {step.instruction}")
+
+        next_leg = (
+            nav_steps.format_distance(step.distance_m)
+            if step.action not in {"lift", "stairs", "arrive"}
+            else "floor change"
+            if step.action in {"lift", "stairs"}
+            else "arrived"
+        )
+        remaining_s = max(0, result.eta_s - step.eta_s)
+        st.caption(
+            f"Next leg {next_leg} · {nav_steps.format_distance(step.remaining_m)}"
+            f" left · about {nav_steps.format_duration(remaining_s)} remaining"
+        )
+
+        def _pause() -> None:
+            st.session_state[NAV_PLAYING] = False
+
+        def _step_by(delta: int) -> None:
+            count = int(st.session_state.get(NAV_STEP_COUNT, 1))
+            current = int(st.session_state.get(NAV_STEP, 0))
+            st.session_state[NAV_STEP] = min(max(0, current + delta), count - 1)
+            st.session_state[NAV_PLAYING] = False
+
+        def _toggle_play() -> None:
+            playing = not st.session_state.get(NAV_PLAYING, False)
+            count = int(st.session_state.get(NAV_STEP_COUNT, 1))
+            if playing and int(st.session_state.get(NAV_STEP, 0)) >= count - 1:
+                st.session_state[NAV_STEP] = 0
+            st.session_state[NAV_PLAYING] = playing
+            st.session_state[NAV_LAST_ADVANCE] = time.monotonic()
+
+        if len(steps) > 1:
+            st.slider(
+                "Route progress",
+                0,
+                len(steps) - 1,
+                key=NAV_STEP,
+                on_change=_pause,
+                help="Drag to jump to any step. Playing advances every few "
+                "seconds and pauses when you adjust the slider.",
+            )
+
+        playing = st.session_state.get(NAV_PLAYING, False)
+        nav_prev, nav_play, nav_next = st.columns(3)
+        nav_prev.button(
+            "Previous",
+            key="nav_prev_step",
+            disabled=current_index == 0,
+            on_click=_step_by,
+            args=(-1,),
+            width="stretch",
+        )
+        nav_play.button(
+            "Pause" if playing else "Play",
+            key="nav_play",
+            type="primary",
+            disabled=len(steps) <= 1,
+            on_click=_toggle_play,
+            width="stretch",
+        )
+        nav_next.button(
+            "Next",
+            key="nav_next_step",
+            disabled=current_index >= len(steps) - 1,
+            on_click=_step_by,
+            args=(1,),
+            width="stretch",
+        )
+
+        speak_auto = st.checkbox(
+            "Speak each step automatically",
+            key=NAV_SPEAK_STEPS,
+            help="Speech is optional; every instruction is always shown as text.",
+        )
+        if st.button("Speak this step", key="nav_speak_step", width="stretch"):
+            _nav_speak(step.spoken)
+            st.session_state[NAV_LAST_SPOKEN] = current_index
+
+        if st.session_state.get(NAV_PLAYING) and len(steps) > 1:
+            interval = 2.6 if speak_auto else 1.8
+
+            @st.fragment(run_every=interval)
+            def _nav_autoplay() -> None:
+                now = time.monotonic()
+                last = float(st.session_state.get(NAV_LAST_ADVANCE, 0.0))
+                if now - last < interval * 0.8:
+                    return
+                index = int(st.session_state.get(NAV_STEP, 0))
+                if index + 1 < len(steps):
+                    st.session_state[NAV_STEP] = index + 1
+                    st.session_state[NAV_LAST_ADVANCE] = now
+                    st.rerun()
+                else:
+                    st.session_state[NAV_PLAYING] = False
+                    st.rerun()
+
+            _nav_autoplay()
+
+        if speak_auto and st.session_state.get(NAV_LAST_SPOKEN) != current_index:
+            _nav_speak(step.spoken)
+            st.session_state[NAV_LAST_SPOKEN] = current_index
 
 
-def _render_route_result(
-    result: nav.RouteResult, graph, *, with_map: bool = True
+def _render_nav_route_details(
+    result: nav.RouteResult,
+    baseline: nav.RouteResult | None,
+    steps: list,
+    profile_key: str,
 ) -> None:
-    title = result.algorithm if result.algorithm else "Route"
-    st.subheader(f"{title} result")
-
-    if result.error:
-        components.status_banner("error", result.error)
+    if not result.found:
         return
+    with st.expander("Route details, text instructions, and comparisons"):
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Distance", f"{result.cost:.0f} m")
+        m2.metric("Estimated time", nav_steps.format_duration(result.eta_s))
+        m3.metric("Stairs", str(result.stairs_count))
+        m4.metric("Lift uses", str(result.lift_count))
 
-    if result.unreachable:
-        components.status_banner(
-            "info",
-            f"No route exists between {graph.display_name(result.start)} "
-            f"and {graph.display_name(result.goal)} on this map "
-            f"({result.explored_count} nodes explored before concluding this). "
-            "This is a correct algorithmic result for the disconnected part "
-            "of the sample map.",
+        details = []
+        if result.min_width_m is not None:
+            details.append(f"narrowest simulated segment {result.min_width_m:.1f} m")
+        if result.detour_m:
+            details.append(f"{result.detour_m:.0f} m longer than the fastest route")
+        if result.constraints:
+            details.append(" · ".join(result.constraints))
+        if details:
+            st.caption("; ".join(details).capitalize() + ".")
+
+        if result.explanation:
+            st.info(result.explanation)
+
+        if baseline is not None and baseline.found and profile_key != "fastest":
+            st.markdown("**Profile comparison**")
+            st.dataframe(
+                [
+                    {
+                        "Profile": result.profile_label,
+                        "Distance (m)": round(result.cost, 1),
+                        "ETA": nav_steps.format_duration(result.eta_s),
+                        "Stairs": result.stairs_count,
+                        "Lift uses": result.lift_count,
+                    },
+                    {
+                        "Profile": "Fastest",
+                        "Distance (m)": round(baseline.cost, 1),
+                        "ETA": nav_steps.format_duration(baseline.eta_s),
+                        "Stairs": baseline.stairs_count,
+                        "Lift uses": baseline.lift_count,
+                    },
+                ],
+                width="stretch",
+                hide_index=True,
+            )
+            st.caption(
+                "Both rows describe the same fictional map. ETA includes "
+                "fixed simulated penalties for stairs, lifts, and doors."
+            )
+
+        st.markdown("**Full route**")
+        st.markdown(" → ".join(f"**{name}**" for name in result.path_display))
+
+        st.markdown("**Turn-by-turn text**")
+        for step in steps:
+            st.markdown(f"**{step.index + 1}. {step.name}** - {step.instruction}")
+
+        st.caption(
+            f"Nodes explored ({result.explored_count}): "
+            + " → ".join(result.explored_names)
+        )
+
+
+def _render_nav_algorithm_maps(
+    graph, start: str, dest: str, blocked_edges, blocked_nodes, speed: float
+) -> None:
+    """Show the concrete BFS and A* paths side by side as route maps."""
+    st.subheader("BFS vs A* route maps")
+    st.caption(
+        "Both maps use the Fastest profile because BFS ignores edge weights. "
+        "The active simulated closures are included."
+    )
+    bfs_result = nav.plan_route(
+        graph,
+        start,
+        dest,
+        profile_key="fastest",
+        blocked_edges=blocked_edges,
+        blocked_nodes=blocked_nodes,
+        algorithm="BFS",
+        speed_mps=speed,
+        include_baseline=False,
+    )
+    astar_result = nav.plan_route(
+        graph,
+        start,
+        dest,
+        profile_key="fastest",
+        blocked_edges=blocked_edges,
+        blocked_nodes=blocked_nodes,
+        algorithm="A*",
+        speed_mps=speed,
+        include_baseline=False,
+    )
+    if not (bfs_result.found and astar_result.found):
+        st.info(
+            "BFS and A* need an open route between the selected locations "
+            "under the current simulated closures."
         )
         return
 
-    components.status_banner(
-        "success",
-        f"Route found: {result.hops} hop(s), {result.cost:.0f} m, "
-        f"{result.explored_count} nodes explored, {result.time_ms} ms.",
-    )
-
-    if with_map and result.path:
-        with st.container(border=True):
-            map_view.render_route_map(
+    same_path = bfs_result.path == astar_result.path
+    map_left, map_right = st.columns(2)
+    for col, label, result, colour, key in (
+        (map_left, "BFS", bfs_result, "#B45309", "nav_algo_bfs"),
+        (map_right, "A*", astar_result, map_view.ROUTE, "nav_algo_astar"),
+    ):
+        with col:
+            st.markdown(f"**{label}**")
+            st.caption(
+                f"{result.hops} hops · {result.cost:.1f} m · "
+                f"{result.explored_count} nodes explored · "
+                f"{result.time_ms} ms"
+            )
+            figure = map_view.build_route_figure(
                 graph,
-                result.path,
-                caption=(
-                    "Fictional sample map - schematic layout of the demo graph, "
-                    "not a real building. Start (green), destination (amber), "
-                    "route (teal). The written route below is the primary "
-                    "description."
-                ),
+                path=result.path,
+                start=start,
+                goal=dest,
+                blocked_edges=blocked_edges,
+                blocked_nodes=blocked_nodes,
+                label_scope="route",
+                route_color=colour,
+                route_name=f"{label} path",
+                height=520,
             )
-
-    # Route as a readable flow, then a step table with cumulative distance.
-    st.markdown(" → ".join(f"**{name}**" for name in result.path_display))
-
-    with st.expander("Step-by-step route"):
-        cumulative = 0.0
-        for i, (node_id, name) in enumerate(zip(result.path, result.path_display)):
-            if i > 0:
-                for neighbour, weight in graph.neighbours(result.path[i - 1]):
-                    if neighbour == node_id:
-                        cumulative += weight
-                        break
-            st.markdown(
-                f"**{i + 1}. {name}**"
-                + (f" — {cumulative:.0f} m from start" if i > 0 else " — starting point")
+            st.plotly_chart(
+                figure,
+                width="stretch",
+                key=key,
+                config={"displayModeBar": False, "scrollZoom": False},
             )
+            st.caption("Path: " + " → ".join(result.path_display))
 
-    with st.expander(f"Nodes explored ({result.explored_count})"):
-        st.caption(" → ".join(result.explored_names))
-
-    st.caption(
-        "These numbers describe the fictional sample map only - not any "
-        "real building, and never safe real-world guidance."
-    )
-
-
-def _render_comparison_maps(
-    bfs_result: nav.RouteResult,
-    astar_result: nav.RouteResult,
-    graph,
-) -> None:
-    if not (bfs_result.found and astar_result.found):
-        return
-    st.subheader("Route maps")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**BFS - fewest hops**")
-        map_view.render_route_map(graph, bfs_result.path)
-    with c2:
-        st.markdown("**A* - shortest distance**")
-        map_view.render_route_map(graph, astar_result.path)
-    st.caption(
-        "Both maps come from the fictional sample graph. When the two routes "
-        "differ, note how BFS prefers fewer stops while A* may take more hops "
-        "to walk a shorter distance. Schematic layout - not a real building."
-    )
-
-
-def _render_comparison(bfs_result: nav.RouteResult, astar_result: nav.RouteResult) -> None:
-    st.subheader("BFS vs A* comparison")
-    if not (bfs_result.found and astar_result.found):
-        return
+    st.markdown("**Algorithm totals**")
     st.dataframe(
         [
             {
@@ -1482,11 +1666,320 @@ def _render_comparison(bfs_result: nav.RouteResult, astar_result: nav.RouteResul
         width="stretch",
         hide_index=True,
     )
+
+    if same_path:
+        st.info(
+            "Both algorithms chose the same path for this pair. Try "
+            "Main Hall → Staff Room to see their paths diverge."
+        )
+    else:
+        st.caption(
+            "BFS minimizes hops; A* minimizes walking distance. Notice where "
+            "the two coloured paths diverge."
+        )
+
+
+def render_navigation() -> None:
+    components.page_header(
+        "Indoor Navigation Demo",
+        "Click the map, choose a profile, and walk the route without "
+        "leaving the map view.",
+    )
+    components.safety_notice()  # mandatory on the navigation page
     st.caption(
-        "BFS minimizes hops and ignores distances; A* minimizes walking "
-        "distance using the straight-line heuristic and typically explores "
-        "fewer nodes. Both are correct for the sample map - they simply "
-        "optimize different things."
+        "Simulation only: a fixed fictional map, not live location or "
+        "guidance. Step-free and quiet profiles are preferences on this "
+        "sample graph, not accessibility certification."
+    )
+
+    graph = nav.get_graph()
+    scenarios = nav_scenarios.all_scenarios(graph)
+    node_ids = graph.ids()
+
+    st.session_state.setdefault(NAV_START, "entrance")
+    st.session_state.setdefault(
+        NAV_DEST, "meeting_room" if "meeting_room" in node_ids else node_ids[-1]
+    )
+    st.session_state.setdefault(NAV_PROFILE, "fastest")
+    st.session_state.setdefault(NAV_SPEED, 1.1)
+    st.session_state.setdefault(NAV_SCENARIO, "none")
+    st.session_state.setdefault(NAV_CLOSURES, set())
+    st.session_state.setdefault(NAV_CLICK_MODE, NAV_CLICK_MODES[0])
+    st.session_state.setdefault(NAV_MAP_EPOCH, 0)
+    st.session_state.setdefault(NAV_STEP, 0)
+    st.session_state.setdefault(NAV_PLAYING, False)
+    st.session_state.setdefault(NAV_SPEAK_STEPS, False)
+    st.session_state.setdefault(NAV_SHOW_EXPLORED, False)
+    st.session_state.setdefault(NAV_SHOW_LABELS, True)
+    st.session_state.setdefault(NAV_LAST_ADVANCE, 0.0)
+    st.session_state.setdefault(NAV_LAST_SPOKEN, -1)
+
+    if st.session_state[NAV_START] not in graph.nodes:
+        st.session_state[NAV_START] = "entrance"
+    if st.session_state[NAV_DEST] not in graph.nodes:
+        st.session_state[NAV_DEST] = "meeting_room"
+    if st.session_state[NAV_PROFILE] not in nav_profiles.PROFILES:
+        st.session_state[NAV_PROFILE] = "fastest"
+    if st.session_state[NAV_SCENARIO] not in scenarios:
+        st.session_state[NAV_SCENARIO] = "none"
+    if st.session_state[NAV_CLICK_MODE] not in NAV_CLICK_MODES:
+        st.session_state[NAV_CLICK_MODE] = NAV_CLICK_MODES[0]
+
+    # Apply a map click from the previous run before the widgets are created.
+    pending = st.session_state.pop(NAV_PENDING, None)
+    if pending:
+        if pending.get("kind") == "node":
+            target = NAV_START if pending.get("mode") == "Set start" else NAV_DEST
+            node = pending.get("node")
+            if node in graph.nodes:
+                st.session_state[target] = node
+                role = (
+                    "Start"
+                    if pending.get("mode") == "Set start"
+                    else "Destination"
+                )
+                st.session_state[NAV_FLASH] = (
+                    f"{role} set to {graph.display_name(node)}."
+                )
+        elif pending.get("kind") == "edge":
+            try:
+                a, b = sorted((pending["edge"][0], pending["edge"][1]))
+            except (KeyError, IndexError, TypeError):
+                a = b = ""
+            if a in graph.nodes and b in graph.nodes and a != b:
+                closures = set(st.session_state.get(NAV_CLOSURES, set()))
+                key = (a, b)
+                if key in closures:
+                    closures.remove(key)
+                    action = "reopened"
+                else:
+                    closures.add(key)
+                    action = "closed"
+                st.session_state[NAV_CLOSURES] = closures
+                st.session_state[NAV_FLASH] = (
+                    f"Segment {action}: {graph.display_name(a)} ↔ "
+                    f"{graph.display_name(b)}."
+                )
+        st.session_state[NAV_PLAYING] = False
+
+    flash = st.session_state.pop(NAV_FLASH, None)
+    if flash:
+        st.toast(flash)
+
+    with st.container(border=True):
+        st.markdown("#### Plan a route")
+        s1, s2, s3 = st.columns([1.2, 1.2, 1])
+        start = s1.selectbox(
+            "Start location",
+            node_ids,
+            key=NAV_START,
+            format_func=lambda node: _nav_label(graph, node),
+        )
+        dest = s2.selectbox(
+            "Destination",
+            node_ids,
+            key=NAV_DEST,
+            format_func=lambda node: _nav_label(graph, node),
+        )
+        scenario_key = s3.selectbox(
+            "Closure scenario",
+            list(scenarios),
+            format_func=lambda key: scenarios[key].label,
+            key=NAV_SCENARIO,
+            help=scenarios[
+                st.session_state.get(NAV_SCENARIO, "none")
+            ].description,
+        )
+        profile_key = st.radio(
+            "Route profile",
+            list(nav_profiles.PROFILE_ORDER),
+            format_func=lambda key: nav_profiles.PROFILES[key].label,
+            horizontal=True,
+            key=NAV_PROFILE,
+            help="Fastest = shortest distance. Step-free = no stairs, lift "
+            "required for floor changes. Quiet = penalise crowded segments.",
+        )
+        st.caption(nav_profiles.PROFILES[profile_key].description)
+
+        with st.expander("Advanced options"):
+            a1, a2 = st.columns(2)
+            speed = a1.slider(
+                "Walking speed",
+                min_value=0.8,
+                max_value=1.4,
+                step=0.1,
+                key=NAV_SPEED,
+                format="%.1f m/s",
+                help="Used only to estimate time on the fictional map.",
+            )
+            show_explored = a2.checkbox(
+                "Show explored nodes",
+                key=NAV_SHOW_EXPLORED,
+                help="Highlights nodes the selected search visited, for "
+                "algorithm comparison.",
+            )
+            show_labels = a2.checkbox(
+                "Show location names",
+                key=NAV_SHOW_LABELS,
+                help="Turn names off to reduce clutter; hover any marker to "
+                "read its full name.",
+            )
+
+    def _reset_nav_closures() -> None:
+        st.session_state[NAV_SCENARIO] = "none"
+        st.session_state[NAV_CLOSURES] = set()
+        st.session_state[NAV_PLAYING] = False
+
+    custom_closures = set(st.session_state.get(NAV_CLOSURES, set()))
+    effective_edges = frozenset(scenarios[scenario_key].blocked_edges) | frozenset(
+        custom_closures
+    )
+    effective_nodes = frozenset(scenarios[scenario_key].blocked_nodes)
+    closure_labels = nav_profiles.blocked_summary(
+        graph, effective_edges, effective_nodes
+    )
+
+    result = nav.plan_route(
+        graph,
+        start,
+        dest,
+        profile_key=profile_key,
+        blocked_edges=effective_edges,
+        blocked_nodes=effective_nodes,
+        speed_mps=speed,
+    )
+    baseline = None
+    if profile_key != "fastest":
+        baseline = nav.plan_route(
+            graph,
+            start,
+            dest,
+            profile_key="fastest",
+            blocked_edges=effective_edges,
+            blocked_nodes=effective_nodes,
+            speed_mps=speed,
+            include_baseline=False,
+        )
+
+    steps = (
+        nav_steps.build_steps(graph, result.path, speed) if result.found else []
+    )
+    signature = (
+        start,
+        dest,
+        profile_key,
+        round(speed, 2),
+        tuple(sorted(effective_edges)),
+        tuple(sorted(effective_nodes)),
+        tuple(result.path),
+    )
+    if st.session_state.get(NAV_STEP_SIG) != signature:
+        st.session_state[NAV_STEP] = 0
+        st.session_state[NAV_PLAYING] = False
+        st.session_state[NAV_LAST_SPOKEN] = -1
+        st.session_state[NAV_STEP_SIG] = signature
+
+    st.session_state[NAV_STEP_COUNT] = len(steps)
+    if steps:
+        current_index = min(
+            max(int(st.session_state.get(NAV_STEP, 0)), 0), len(steps) - 1
+        )
+        st.session_state[NAV_STEP] = current_index
+        current_node = steps[current_index].node_id
+    else:
+        current_index = 0
+        current_node = None
+
+    map_col, guide_col = st.columns([1.65, 1], gap="large")
+
+    with map_col:
+        toolbar_left, toolbar_right = st.columns([3.4, 1])
+        click_mode = toolbar_left.radio(
+            "Map click action",
+            NAV_CLICK_MODES,
+            horizontal=True,
+            key=NAV_CLICK_MODE,
+            help="Choose whether clicking a location sets the start, sets "
+            "the destination, or closes/reopens a segment.",
+        )
+        toolbar_right.button(
+            "Reset closures",
+            key="nav_reset_closures",
+            on_click=_reset_nav_closures,
+            disabled=not (effective_edges or effective_nodes),
+            width="stretch",
+        )
+        if closure_labels:
+            st.caption("Closed: " + "; ".join(closure_labels))
+        elif click_mode == "Close/open segment":
+            st.caption(
+                "No simulated closures. Click a small square handle on a "
+                "segment to close it."
+            )
+        else:
+            st.caption("No simulated closures.")
+        st.caption(
+            "Click a location or segment; the route and walk-through update "
+            "automatically."
+        )
+
+        figure = map_view.build_route_figure(
+            graph,
+            path=result.path if result.found else (),
+            start=start,
+            goal=dest,
+            current=(
+                current_node
+                if current_node
+                and (current_index > 0 or st.session_state.get(NAV_PLAYING))
+                else None
+            ),
+            explored=(
+                result.explored_ids if show_explored and result.found else ()
+            ),
+            blocked_edges=effective_edges,
+            blocked_nodes=effective_nodes,
+            show_closures=click_mode == "Close/open segment",
+            label_scope="all" if show_labels else "none",
+        )
+        map_epoch = int(st.session_state.get(NAV_MAP_EPOCH, 0))
+        event = st.plotly_chart(
+            figure,
+            width="stretch",
+            key=f"nav_map_{map_epoch}",
+            on_select="rerun",
+            selection_mode="points",
+            config={"displayModeBar": False, "scrollZoom": False},
+        )
+        selected = map_view.decode_selection(event)
+        if selected:
+            if selected[0] == "node" and click_mode in {
+                "Set start",
+                "Set destination",
+            }:
+                st.session_state[NAV_PENDING] = {
+                    "kind": "node",
+                    "mode": click_mode,
+                    "node": selected[1],
+                }
+                st.session_state[NAV_MAP_EPOCH] = map_epoch + 1
+                st.rerun()
+            elif selected[0] == "edge" and click_mode == "Close/open segment":
+                st.session_state[NAV_PENDING] = {
+                    "kind": "edge",
+                    "edge": (selected[1], selected[2]),
+                }
+                st.session_state[NAV_MAP_EPOCH] = map_epoch + 1
+                st.rerun()
+
+    with guide_col:
+        _render_nav_guide_panel(
+            result, baseline, steps, current_index, profile_key
+        )
+
+    _render_nav_route_details(result, baseline, steps, profile_key)
+    _render_nav_algorithm_maps(
+        graph, start, dest, effective_edges, effective_nodes, speed
     )
 
 
@@ -1533,7 +2026,8 @@ def render_settings() -> None:
                 if runtime.is_hosted()
                 else "- **Speech:** eSpeak NG offline text-to-speech\n"
             )
-            + "- **Navigation:** hand-written BFS and A* on a fixed sample map"
+            + "- **Navigation:** hand-written BFS and A* with Fastest, "
+            "Step-free, and Quiet profiles on a fixed fictional map"
         )
     with d2:
         st.markdown(

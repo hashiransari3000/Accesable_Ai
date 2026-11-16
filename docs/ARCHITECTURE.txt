@@ -72,6 +72,18 @@ ACCESSABLE AI - ARCHITECTURE
       per utterance because pyttsx3 engines are not thread-safe. Speech is
       user-triggered or explicitly enabled; text output always exists.
 
+  modules/runtime.py
+      Detects whether the app is running locally or on a hosted platform
+      (Streamlit Community Cloud, Hugging Face Spaces, or an explicit
+      ACCESSABLE_HOSTED flag). Hosted mode switches to browser speech and
+      browser camera snapshots because server audio and live camera access
+      are unavailable there.
+
+  ui/browser_speech.py
+      Hosted speech via the Web Speech API in a Streamlit component. The
+      page always shows the same message as text and offers an explicit
+      Stop control; speech remains user-triggered or opt-in.
+
   modules/text_recognition.py
       EasyOCR English, loaded only when requested and cached for the
       process lifetime. Distinguishes "no text found" (empty) from errors
@@ -88,13 +100,19 @@ ACCESSABLE AI - ARCHITECTURE
       decoding, and decode checks with actionable messages.
 
   modules/navigation/
-      graph_data.py (sample map parsing and validation), bfs.py, astar.py,
-      route_service.py (route building and comparison metrics). Algorithms
-      are hand-written and unit-tested; matplotlib is used only for maps.
+      graph_data.py parses and validates the fictional two-floor map
+      (floors, node kinds/tags, edge type/width/crowd). bfs.py and astar.py
+      are hand-written searches with optional allowed/cost callables.
+      profiles.py enforces Fastest / Step-free / Quiet preferences;
+      scenarios.py supplies simulated closure presets; instructions.py
+      builds turn-by-turn text, ETAs, and spoken summaries; route_service.py
+      is the UI-facing planner and explanation layer. All unit-tested.
 
   ui/styles.py        Design tokens, global CSS, accessible focus styles.
   ui/components.py    Shared headers, banners, cards, and status pills.
-  ui/map_view.py      Route-map rendering with label collision avoidance.
+  ui/map_view.py      Two-floor Plotly schematic with route, explored-node,
+      closure, and floor-change overlays; clicking nodes/edges is decoded
+      by the navigation page.
 
 3. DATA FLOW
 ------------
@@ -114,8 +132,11 @@ ACCESSABLE AI - ARCHITECTURE
       text block, copy/download, speech.
 
   Navigation
-      graph_data -> route_service -> bfs/astar -> step table, comparison
-      metrics, and route maps.
+      graph_data -> route_service -> profiles/scenarios -> bfs/astar ->
+      interactive Plotly map, metrics/explanation, profile comparison,
+      BFS-vs-A* comparison, and a guided walk-through with optional speech.
+      Map clicks update start/destination or simulated closures and trigger
+      an automatic rerun; nothing is live location data.
 
 4. SAFETY AND DEGRADATION
 -------------------------

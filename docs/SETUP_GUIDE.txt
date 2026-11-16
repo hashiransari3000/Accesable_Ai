@@ -34,7 +34,7 @@ ACCESSABLE AI - SETUP GUIDE (Linux)
       opencv-python    image handling and annotation
       pillow           image utilities
       transformers     optional relative-depth model
-      matplotlib       route-map rendering
+      plotly           interactive route-map rendering
       pyttsx3          offline text-to-speech wrapper
       easyocr          local OCR (loaded on demand)
       pytest           test runner

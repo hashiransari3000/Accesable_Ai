@@ -44,6 +44,9 @@ def astar_shortest_path(
     start: str,
     goal: str,
     heuristic=None,
+    *,
+    cost=None,
+    allowed=None,
 ) -> SearchResult:
     if start not in graph.nodes or goal not in graph.nodes:
         raise ValueError(f"Unknown node: {start if start not in graph.nodes else goal}")
@@ -73,12 +76,16 @@ def astar_shortest_path(
                 explored_order=explored_order,
                 hops=len(path) - 1,
                 cost=_path_cost(graph, path),
+                search_cost=g_cost[current],
             )
 
         for neighbour, weight in graph.neighbours(current):
             if neighbour in settled:
                 continue
-            new_cost = g_cost[current] + weight
+            if allowed is not None and not allowed(current, neighbour):
+                continue
+            edge_cost = cost(current, neighbour, weight) if cost else weight
+            new_cost = g_cost[current] + edge_cost
             if neighbour not in g_cost or new_cost < g_cost[neighbour]:
                 g_cost[neighbour] = new_cost
                 parent[neighbour] = current

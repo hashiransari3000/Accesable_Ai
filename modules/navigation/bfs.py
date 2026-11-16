@@ -30,10 +30,16 @@ class SearchResult:
     path: list[str] | None          # None when unreachable
     explored_order: list[str] = field(default_factory=list)
     hops: int = 0                   # edges in the path
-    cost: float = 0.0               # actual weighted cost of the path
+    cost: float = 0.0               # actual walking distance of the path
+    search_cost: float = 0.0        # cost the search minimised
 
 
-def bfs_shortest_path(graph: IndoorGraph, start: str, goal: str) -> SearchResult:
+def bfs_shortest_path(
+    graph: IndoorGraph,
+    start: str,
+    goal: str,
+    allowed=None,
+) -> SearchResult:
     if start not in graph.nodes or goal not in graph.nodes:
         raise ValueError(f"Unknown node: {start if start not in graph.nodes else goal}")
 
@@ -51,8 +57,11 @@ def bfs_shortest_path(graph: IndoorGraph, start: str, goal: str) -> SearchResult
                 explored_order=explored_order,
                 hops=len(path) - 1,
                 cost=_path_cost(graph, path),
+                search_cost=_path_cost(graph, path),
             )
         for neighbour, _weight in graph.neighbours(current):
+            if allowed is not None and not allowed(current, neighbour):
+                continue
             if neighbour not in parent:
                 parent[neighbour] = current
                 queue.append(neighbour)

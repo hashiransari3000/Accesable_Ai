@@ -31,8 +31,11 @@ Streamlit Community Cloud instance. No cloud AI APIs, accounts, or telemetry.
 - **Camera auto-briefing (optional, local live camera)** — announces only
   objects that appear or clear, with change confirmation to ignore flicker, and
   a persistent text log.
-- **Indoor navigation demo** — hand-written BFS and A* on a clearly fictional
-  sample map, with route maps and a side-by-side comparison.
+- **Indoor navigation demo** — an interactive two-floor schematic of a clearly
+  fictional sample building. Click the map to set a start/destination or close a
+  segment, choose Fastest, Step-free, or Quiet profiles, run simulated closure
+  scenarios, and step through spoken turn-by-turn instructions. A BFS-vs-A*
+  comparison shows how hop-count and distance searches differ.
 - **Privacy by design** — no analytics, no data retention, and no external
   requests at runtime beyond one-time model downloads. Images are processed in
   memory and never saved; on a public instance they are processed on the
@@ -49,7 +52,7 @@ Streamlit Community Cloud instance. No cloud AI APIs, accounts, or telemetry.
 | Image handling | OpenCV, Pillow |
 | OCR | EasyOCR (loaded on demand) |
 | Speech | pyttsx3 + eSpeak NG locally; browser Web Speech API when hosted |
-| Navigation | Hand-written BFS / A*, matplotlib route maps |
+| Navigation | Hand-written BFS / A*, Plotly interactive route maps |
 | Tests | pytest |
 
 ## Getting started
