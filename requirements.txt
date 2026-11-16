@@ -1,11 +1,13 @@
 # AccessAble AI dependency pins.
-# Versions verified with Python 3.14 on Linux.
+# Versions verified with Python 3.14 on Linux; Cloud runs 3.12.
 # System package (not pip): espeak-ng  -> sudo dnf install espeak-ng
+# (only needed for the local build's offline speech; hosted builds use
+# browser voices and do not require eSpeak).
 #
-# NOTE (CPU-only laptops): install torch and torchvision from the CPU index
-# BEFORE the rest, to avoid pulling ~2 GB of CUDA libraries:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-#   pip install -r requirements.txt
+# CPU-only PyTorch builds are pinned explicitly, which avoids downloading
+# ~2 GB of unused CUDA libraries. Remove the +cpu pins if you intentionally
+# use a GPU build.
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # UI
 streamlit==1.67.0
@@ -13,7 +15,9 @@ streamlit==1.67.0
 # Computer vision / detection
 pillow==13.0.0
 opencv-python==5.0.0.93
-ultralytics==8.4.212        # pulls torch/torchvision (see CPU note above)
+torch==2.15.0+cpu          # CPU-only build (see index above)
+torchvision==0.29.2+cpu    # must match torch
+ultralytics==8.4.212
 
 # Open-vocabulary detection
 # YOLO-World reuses ultralytics; CLIP tokenization needs ftfy + regex

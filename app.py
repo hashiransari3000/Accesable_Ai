@@ -24,13 +24,14 @@ from modules import depth_estimation as depth_mod
 from modules import object_detection as od
 from modules import open_vocabulary as ov
 from modules import rubiks_detector as rubiks
+from modules import runtime
 from modules import scene_tracker as tracker
 from modules import text_recognition as tr
 from modules import voice_assistant as vas
 from modules.image_validation import validate_upload
 from modules.navigation import route_service as nav
 from modules.position_analysis import describe_position
-from ui import components, map_view, styles
+from ui import browser_speech, components, map_view, styles
 
 st.set_page_config(
     page_title="AccessAble AI",
@@ -40,7 +41,7 @@ st.set_page_config(
 )
 styles.inject_global_css()
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 
 PAGES = [
     "Dashboard",
@@ -124,9 +125,10 @@ def render_sidebar() -> str:
             "<span>Images are processed in memory and never stored.</span></div>",
             unsafe_allow_html=True,
         )
+        mode_label = "hosted" if runtime.is_hosted() else "offline"
         st.markdown(
             f'<div class="aa-apptag" style="margin-top:14px;">'
-            f"Prototype v{APP_VERSION} · offline · CPU</div>",
+            f"Prototype v{APP_VERSION} · {mode_label} · CPU</div>",
             unsafe_allow_html=True,
         )
     return page
@@ -165,9 +167,15 @@ def render_dashboard() -> None:
         components.feature_card(
             "speaker",
             "Voice feedback",
-            "Concise spoken summaries using offline text-to-speech, with "
-            "speak, stop, replay, and rate controls. A visual text version "
-            "is always provided.",
+            (
+                "Concise spoken summaries using your browser's voices, with "
+                "speak, stop, replay, and rate controls. A visual text version "
+                "is always provided."
+                if runtime.is_hosted()
+                else "Concise spoken summaries using offline text-to-speech, "
+                "with speak, stop, replay, and rate controls. A visual text "
+                "version is always provided."
+            ),
         )
         components.feature_card(
             "map",
@@ -178,7 +186,7 @@ def render_dashboard() -> None:
 
     st.subheader("System readiness")
     model_ready = od.is_model_loaded()
-    speech_ready = vas.is_available()
+    speech_ready = True if runtime.is_hosted() else vas.is_available()
     p1, p2, p3 = st.columns(3)
     with p1:
         components.status_pill(
@@ -189,11 +197,19 @@ def render_dashboard() -> None:
     with p2:
         components.status_pill(
             "Speech engine",
-            "ready" if speech_ready else "unavailable",
+            (
+                "browser voices"
+                if runtime.is_hosted()
+                else ("ready" if speech_ready else "unavailable")
+            ),
             speech_ready,
         )
     with p3:
-        components.status_pill("Privacy", "fully local", True)
+        components.status_pill(
+            "Privacy",
+            "no storage" if runtime.is_hosted() else "fully local",
+            True,
+        )
 
     st.button(
         "Open Scene Assistant",
@@ -228,18 +244,36 @@ def _clear_image() -> None:
 def render_scene_assistant() -> None:
     components.page_header(
         "Scene Assistant",
-        "Detect common objects in an uploaded image or a live camera snapshot, "
-        "then hear a concise spoken summary. Processing stays in memory.",
+        (
+            "Detect common objects in an uploaded image or a browser camera "
+            "snapshot, then hear a concise spoken summary. Processing stays "
+            "in memory."
+            if runtime.is_hosted()
+            else "Detect common objects in an uploaded image or a live camera "
+            "snapshot, then hear a concise spoken summary. Processing stays "
+            "in memory."
+        ),
     )
     components.privacy_notice()
 
+    modes = (
+        ["Image upload", "Camera snapshot"]
+        if runtime.is_hosted()
+        else ["Image upload", "Live camera"]
+    )
     mode = st.radio(
         "Choose how to provide an image",
-        ["Image upload", "Live camera"],
+        modes,
         horizontal=True,
         key="scene_mode",
     )
     _render_voice_settings()
+
+    if mode == "Camera snapshot":
+        # A hosted server cannot reach the visitor's webcam; the browser
+        # takes one photo and sends it to the server for analysis.
+        _render_browser_camera()
+        return
 
     if mode == "Live camera":
         # The camera must only run while its mode is on screen.
@@ -250,6 +284,41 @@ def render_scene_assistant() -> None:
         _stop_camera()  # leaving camera mode releases the device
 
     _render_upload_mode()
+
+
+def _render_browser_camera() -> None:
+    """Browser camera snapshot mode for hosted deployments."""
+    st.caption(
+        "Uses your browser's camera over HTTPS. The photo is sent to the app "
+        "server for processing and is not saved. Browser camera access "
+        "requires camera permission."
+    )
+    shot = st.camera_input("Take a photo", key="browser_camera_photo")
+    if shot is not None:
+        data = shot.getvalue()
+        error = validate_upload(shot.name or "camera.jpg", shot.size or len(data), data)
+        if error:
+            components.status_banner("error", error)
+        else:
+            threshold = st.session_state.get(
+                "conf_threshold", od.DEFAULT_CONFIDENCE
+            )
+            st.caption(
+                f"Detection threshold: **{threshold:.2f}** - change it in "
+                "Image upload mode."
+            )
+            if st.button(
+                "Analyze this photo", type="primary", key="browser_camera_analyze"
+            ):
+                with st.spinner("Analyzing on CPU..."):
+                    result = od.analyze_image(
+                        data, confidence_threshold=threshold
+                    )
+                st.session_state[CAMERA_SNAPSHOT] = data
+                st.session_state[CAMERA_RESULT] = result
+                st.rerun()
+
+    _render_camera_results()
 
 
 def _render_upload_mode() -> None:
@@ -514,9 +583,15 @@ def _render_upload_mode() -> None:
 
 def _render_voice_settings() -> bool:
     """Single shared speech-rate control, rendered once per page."""
-    tts_ok = vas.is_available()
+    tts_ok = True if runtime.is_hosted() else vas.is_available()
     with st.expander("Voice settings", expanded=False):
-        if not tts_ok:
+        if runtime.is_hosted():
+            st.caption(
+                "Speech is produced by your browser's built-in voices; no "
+                "server audio setup is needed. Availability varies by browser "
+                "and operating system."
+            )
+        elif not tts_ok:
             components.status_banner("warning", vas.setup_hint())
         rate = st.slider(
             "Speech rate (words per minute)",
@@ -649,6 +724,11 @@ def _render_speech_controls(
         return
 
     summary = am.summarize(result.detections, result.image_size[0], result.image_size[1])
+    if runtime.is_hosted():
+        _render_browser_speech_controls(
+            summary.summary, prefix=prefix, heading=heading
+        )
+        return
     tts_ok = vas.is_available()
     status_key = f"speech_status_{prefix}"
 
@@ -697,6 +777,45 @@ def _render_speech_controls(
                 st.caption(status)
         elif tts_ok and not vas.assistant.is_speaking():
             st.caption("Not speaking. Press Speak summary to start.")
+
+
+def _render_browser_speech_controls(
+    text: str, *, prefix: str, heading: str
+) -> None:
+    """Speak / stop / replay controls using the visitor's browser voices."""
+    st.subheader(heading)
+    with st.container(border=True):
+        st.markdown(f"**Text version:** {text}")
+        rate = st.session_state.get("speech_rate", vas.DEFAULT_RATE)
+        last_key = f"browser_speech_last_{prefix}"
+        last_text = st.session_state.get(last_key, "")
+
+        b1, b2, b3 = st.columns(3)
+        speak_pressed = b1.button(
+            "Speak summary", type="primary", key=f"{prefix}_speak"
+        )
+        stop_pressed = b2.button("Stop speech", key=f"{prefix}_stop")
+        replay_pressed = b3.button(
+            "Replay speech",
+            disabled=not last_text,
+            key=f"{prefix}_replay",
+        )
+
+        if speak_pressed:
+            st.session_state[last_key] = text
+            browser_speech.speak(text, rate)
+            st.caption("Speaking in this browser. Press Stop to cancel.")
+        elif stop_pressed:
+            browser_speech.stop()
+            st.caption("Speech stopped.")
+        elif replay_pressed:
+            browser_speech.speak(last_text, rate)
+            st.caption("Replaying the last summary.")
+        else:
+            st.caption(
+                "Speech uses your browser's voices; the text version above is "
+                "always available. Voices vary by browser and operating system."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -865,7 +984,8 @@ def render_camera_section() -> None:
         "Speak announcements",
         value=True,
         key=CAMERA_BRIEF_SPEAK,
-        disabled=not brief_on or not vas.is_available(),
+        disabled=not brief_on
+        or not (runtime.is_hosted() or vas.is_available()),
     )
     clear_pressed = st.button(
         "Clear briefing log", key="brief_clear", disabled=not brief_on,
@@ -907,8 +1027,14 @@ def render_camera_section() -> None:
             log = list(st.session_state.get(BRIEF_LOG, []))
             log.insert(0, report.summary)
             st.session_state[BRIEF_LOG] = log[:8]
-            if speak_brief and vas.is_available():
-                vas.assistant.speak(report.summary)
+            if speak_brief:
+                if runtime.is_hosted():
+                    browser_speech.speak(
+                        report.summary,
+                        st.session_state.get("speech_rate", vas.DEFAULT_RATE),
+                    )
+                elif vas.is_available():
+                    vas.assistant.speak(report.summary)
 
         log = st.session_state.get(BRIEF_LOG, [])
         if log:
@@ -1115,6 +1241,30 @@ def _render_ocr_results(current_image_bytes: bytes) -> None:
     with st.expander("Region details"):
         for i, region in enumerate(result.regions, 1):
             st.markdown(f"- Region {i}: **{region.text}** ({region.confidence * 100:.0f}%)")
+
+    if runtime.is_hosted():
+        # Browser speech output; the text remains selectable and copyable.
+        tts_ok = _render_voice_settings()
+        rate = st.session_state.get("speech_rate", vas.DEFAULT_RATE)
+        b1, b2, _ = st.columns([1, 1, 2])
+        speak_pressed = b1.button(
+            "Speak text", type="primary", disabled=not tts_ok, key="ocr_speak",
+        )
+        stop_pressed = b2.button(
+            "Stop speech", disabled=not tts_ok, key="ocr_stop",
+        )
+        if speak_pressed:
+            browser_speech.speak(result.text, rate)
+            st.caption("Speaking in this browser. Press Stop to cancel.")
+        elif stop_pressed:
+            browser_speech.stop()
+            st.caption("Speech stopped.")
+        else:
+            st.caption(
+                "Speech uses your browser's voices. Voices vary by browser and "
+                "operating system."
+            )
+        return
 
     # Read-aloud reuses the shared voice assistant
     tts_ok = _render_voice_settings()
@@ -1378,8 +1528,12 @@ def render_settings() -> None:
             "(open vocabulary), Ultralytics, AGPL-3.0; cached locally after "
             "first use\n"
             "- **Depth model:** Depth Anything V2 Small (relative bands only)\n"
-            "- **Speech:** eSpeak NG offline text-to-speech\n"
-            "- **Navigation:** hand-written BFS and A* on a fixed sample map"
+            + (
+                "- **Speech:** browser Web Speech API (hosted build)\n"
+                if runtime.is_hosted()
+                else "- **Speech:** eSpeak NG offline text-to-speech\n"
+            )
+            + "- **Navigation:** hand-written BFS and A* on a fixed sample map"
         )
     with d2:
         st.markdown(
